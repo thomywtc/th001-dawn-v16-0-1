@@ -48,7 +48,13 @@
         },
         "subscription_xCQRGG": {
           "type": "subscription",
-          "settings": {}
+          "settings": {
+            "color_scheme": "background-2",
+            "color_scheme_active": "accent-2",
+            "one_time_purchase_label": "One-time purchase",
+            "subscribe_and_save_label": "Subscribe & save",
+            "frequency_label": ""
+          }
         },
         "buy_buttons": {
           "type": "buy_buttons",
