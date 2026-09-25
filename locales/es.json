@@ -135,12 +135,9 @@
       "unavailable": "No disponible",
       "subscription": {
         "label": "Opción de compra",
-        "one_time_purchase": "Compra única",
-        "subscribe_and_save": "Suscríbete y ahorra",
-        "deliver_every": "Entrega cada",
+        "frequency": "Frecuencia de entrega",
         "save_percent": "Ahorra {{ percent }}%",
-        "per_delivery": "{{ price }} por entrega",
-        "plan_unavailable": "No disponible para esta opción"
+        "per_delivery": "{{ price }} por entrega"
       },
       "vendor": "Proveedor",
       "video_exit_message": "{{ title }} abre el video en pantalla completa en la misma ventana.",

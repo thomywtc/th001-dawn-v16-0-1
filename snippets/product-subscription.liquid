@@ -4,7 +4,7 @@
 
   Accepts:
   - product: {Object} Product object.
-  - block: {Object} The 'subscription' block, used for its color schemes (optional).
+  - block: {Object} The 'subscription' block, used for its settings (optional).
   - product_form_id: {String} Id of the product form the `selling_plan` input must be bound to.
 
   Usage:
@@ -22,8 +22,15 @@
       assign subscription_form_id = product_form_id
     endif
 
-    assign inactive_scheme = block.settings.color_scheme | default: settings.color_schemes.first
-    assign active_scheme = block.settings.color_scheme_active | default: settings.color_schemes.first
+    # Fall back to valid handles: blocks saved before the settings existed return nil
+    assign inactive_scheme = block.settings.color_scheme | default: section.settings.color_scheme
+    assign active_scheme = block.settings.color_scheme_active
+      | default: settings.color_schemes[1].id
+      | default: section.settings.color_scheme
+
+    assign one_time_label = block.settings.one_time_purchase_label | default: 'One-time purchase'
+    assign subscribe_label = block.settings.subscribe_and_save_label | default: 'Subscribe & save'
+    assign frequency_label = block.settings.frequency_label
 
     assign first_group = product.selling_plan_groups[0]
     assign first_plan = first_group.selling_plans[0]
@@ -44,8 +51,11 @@
     data-subscription-block
     data-section-id="{{ section.id }}"
     data-product-id="{{ product.id }}"
+    data-form-id="{{ subscription_form_id }}"
     data-price-target="price-{{ section.id }}"
     data-current-variant="{{ current_variant.id }}"
+    data-label-regular="{{ 'products.product.price.regular_price' | t | escape }}"
+    data-label-sale="{{ 'products.product.price.sale_price' | t | escape }}"
   >
     {%- comment -%} Prices and selling plan allocations of every variant {%- endcomment -%}
     <script type="application/json" data-subscription-json>
@@ -58,9 +68,20 @@
               "formatted_price": {% if use_currency %}{{ variant.price | money_with_currency | json }}{% else %}{{ variant.price | money | json }}{% endif %},
               "allocations": {
                 {%- for allocation in variant.selling_plan_allocations -%}
+                  {%- liquid
+                    assign allocation_discount = 0
+                    if variant.price > allocation.price
+                      assign allocation_discount = variant.price
+                        | minus: allocation.price
+                        | times: 100.0
+                        | divided_by: variant.price
+                        | round
+                    endif
+                  -%}
                   "{{ allocation.selling_plan.id }}": {
                     "price": {{ allocation.price }},
                     "available": {% if allocation.available == false %}false{% else %}true{% endif %},
+                    "discount_percent": {{ allocation_discount }},
                     "formatted_price": {% if use_currency %}{{ allocation.price | money_with_currency | json }}{% else %}{{ allocation.price | money | json }}{% endif %},
                     "formatted_per_delivery_price": {% if use_currency %}{{ allocation.per_delivery_price | money_with_currency | json }}{% else %}{{ allocation.per_delivery_price | money | json }}{% endif %}
                   }{%- unless forloop.last -%},{%- endunless -%}
@@ -93,7 +114,7 @@
             data-subscription-radio
           >
           <span class="product-subscription__radio-dot" aria-hidden="true"></span>
-          <span class="product-subscription__title">{{ 'products.product.subscription.one_time_purchase' | t }}</span>
+          <span class="product-subscription__title">{{ one_time_label }}</span>
           <span class="product-subscription__price" data-one-time-price>
             {%- if use_currency -%}
               {{ current_variant.price | money_with_currency }}
@@ -121,7 +142,7 @@
             data-subscription-radio
           >
           <span class="product-subscription__radio-dot" aria-hidden="true"></span>
-          <span class="product-subscription__title">{{ 'products.product.subscription.subscribe_and_save' | t }}</span>
+          <span class="product-subscription__title">{{ subscribe_label }}</span>
           <span
             class="product-subscription__badge"
             data-subscription-badge
@@ -162,12 +183,19 @@
         </p>
 
         <div class="product-subscription__details">
-          <label class="product-subscription__delivery" for="SubscriptionFrequency-{{ section.id }}">
-            {{- 'products.product.subscription.deliver_every' | t -}}
-          </label>
+          {%- comment -%}
+            The selling plan names already read "Deliver every month", so the caption is
+            optional and off by default. Leave the option text untouched.
+          {%- endcomment -%}
+          {%- if frequency_label != blank -%}
+            <label class="product-subscription__delivery" for="SubscriptionFrequency-{{ section.id }}">
+              {{ frequency_label }}
+            </label>
+          {%- endif -%}
           <select
             class="product-subscription__select"
             id="SubscriptionFrequency-{{ section.id }}"
+            aria-label="{{ 'products.product.subscription.frequency' | t | escape }}"
             data-selling-plan-select
           >
             {%- for group in product.selling_plan_groups -%}
@@ -323,12 +351,6 @@
         font-size: 1.4rem;
         cursor: pointer;
       }
-
-      /* Big price block of the section, only while a selling plan is selected */
-      #{{ section.id }} .price--subscription .price__badge-sale,
-      #{{ section.id }} .price--subscription .unit-price {
-        display: none;
-      }
     </style>
 
     <script>
@@ -337,6 +359,7 @@
           'product-subscription',
           class ProductSubscription extends HTMLElement {
             variantChangeUnsubscriber = undefined;
+            variantIdInputListener = undefined;
 
             connectedCallback() {
               this.addEventListener('change', (event) => {
@@ -348,8 +371,7 @@
               this.json = this.parseJson('[data-subscription-json]');
               if (!this.json) return;
 
-              this.priceContainer = document.getElementById(this.dataset.priceTarget);
-
+              this.priceContainer = this.getPriceContainer();
               this.oneTimePrice = this.querySelector('[data-one-time-price]');
               this.subPrice = this.querySelector('[data-subscription-price]');
               this.badge = this.querySelector('[data-subscription-badge]');
@@ -359,6 +381,24 @@
               this.oneTimeOption = this.querySelector('[data-option-type="one-time"]');
               this.subOption = this.querySelector('[data-option-type="subscription"]');
               this.subRadio = this.subOption.querySelector('[data-subscription-radio]');
+              this.variantId = this.dataset.currentVariant;
+
+              /**
+               * Dawn re-renders the price block on every variant change and only signals it
+               * through pub/sub, so the variant is also read from the form id input as a
+               * fallback: the block keeps working even if the event payload changes shape.
+               */
+              this.variantIdInputListener = (event) => {
+                if (event.target?.name !== 'id') return;
+
+                const nextVariantId = event.target.value;
+                if (!this.json.variants[nextVariantId] || nextVariantId === this.variantId) return;
+
+                this.variantId = nextVariantId;
+                // the price block is replaced right after this event is dispatched
+                setTimeout(() => this.refresh(), 0);
+              };
+              document.addEventListener('change', this.variantIdInputListener);
 
               // `subscribe` only exists once the deferred theme scripts have run
               if (document.readyState === 'loading') {
@@ -370,24 +410,26 @@
 
             disconnectedCallback() {
               this.variantChangeUnsubscriber?.();
+              document.removeEventListener('change', this.variantIdInputListener);
             }
 
             init() {
               if (!this.isConnected) return;
 
               this.variantChangeUnsubscriber = subscribe(PUB_SUB_EVENTS.variantChange, (event) => {
-                if (!this.isConnected) {
-                  this.variantChangeUnsubscriber?.();
-                  return;
-                }
-
                 const nextVariantId = event?.data?.variant?.id;
-                if (!nextVariantId || !this.json.variants[nextVariantId]) return;
+                if (!this.isConnected || !nextVariantId || !this.json.variants[nextVariantId]) return;
 
-                this.updatePlanAvailability();
-                this.rememberPrice();
-                this.update();
+                this.variantId = String(nextVariantId);
+                this.refresh();
               });
+
+              this.refresh();
+            }
+
+            /** Re-reads everything that depends on the current variant */
+            refresh() {
+              if (!this.isConnected) return;
 
               this.updatePlanAvailability();
               this.rememberPrice();
@@ -402,13 +444,20 @@
               }
             }
 
-            /** Variant selected in the form this block submits to */
-            getFormVariantId() {
-              return this.hiddenInput?.form?.querySelector('input[name="id"]')?.value || this.dataset.currentVariant;
+            /**
+             * Dawn keeps the `#price-{{ section }}` container and only swaps its innerHTML,
+             * but the block is looked up on every use so the reference never goes stale.
+             */
+            getPriceContainer() {
+              return document.getElementById(this.dataset.priceTarget);
             }
 
             getVariant() {
-              return this.json.variants[this.getFormVariantId()];
+              const formVariantId = document
+                .getElementById(this.dataset.formId)
+                ?.querySelector('input[name="id"]')?.value;
+
+              return this.json.variants[this.variantId] || this.json.variants[formVariantId];
             }
 
             getSelectedAllocation() {
@@ -420,11 +469,13 @@
             updatePlanAvailability() {
               const allocations = this.getVariant()?.allocations || {};
               const options = [...this.planSelect.querySelectorAll('option')];
-              const hasPlans = Object.keys(allocations).length > 0;
 
               options.forEach((option) => {
-                option.disabled = allocations[option.value]?.available === false;
+                const allocation = allocations[option.value];
+                option.disabled = !allocation || allocation.available === false;
               });
+
+              const hasPlans = options.some((option) => !option.disabled);
 
               this.subOption.classList.toggle('is-disabled', !hasPlans);
               this.subRadio.disabled = !hasPlans;
@@ -441,42 +492,60 @@
             }
 
             /**
-             * Dawn replaces the whole content of the price block on every variant change,
-             * so the nodes are queried again and the pristine markup is captured right
-             * before the selling plan price is applied.
+             * Dawn replaces the content of the price block on every variant change, so the
+             * server markup is stored before the selling plan price is applied on top of it.
              */
             rememberPrice() {
-              this.price = this.priceContainer?.querySelector('.price');
-              if (!this.price) return;
+              const priceContainer = this.getPriceContainer();
+              if (!priceContainer) return;
 
-              this.priceRegular = this.price.querySelector('.price__regular .price-item--regular');
-              this.priceSale = this.price.querySelector('.price__sale .price-item--sale');
-              this.priceCompare = this.price.querySelector('.price__sale .price-item--regular');
-
-              this.pristinePrice = {
-                className: this.price.className,
-                regular: this.priceRegular?.textContent,
-                sale: this.priceSale?.textContent,
-                compare: this.priceCompare?.textContent,
-              };
+              this.priceContainer = priceContainer;
+              this.pristinePriceHtml = priceContainer.innerHTML;
+              this.pristineClassName = priceContainer.querySelector('.price')?.className || 'price';
             }
 
             restorePrice() {
-              if (!this.price || !this.pristinePrice) return;
+              const priceContainer = this.getPriceContainer();
+              if (!priceContainer || this.pristinePriceHtml == null) return;
 
-              this.price.className = this.pristinePrice.className;
-              if (this.priceRegular) this.priceRegular.textContent = this.pristinePrice.regular;
-              if (this.priceSale) this.priceSale.textContent = this.pristinePrice.sale;
-              if (this.priceCompare) this.priceCompare.textContent = this.pristinePrice.compare;
+              priceContainer.innerHTML = this.pristinePriceHtml;
             }
 
+            /**
+             * Rebuilds the price block as "was one time / now the selling plan price",
+             * the same markup and classes Dawn uses for a sale price. The size classes
+             * come from the server markup so the block keeps its original typography.
+             */
             applyPrice(formattedPrice, compareAtPrice) {
-              if (!this.price || !this.pristinePrice) return;
+              const priceContainer = this.getPriceContainer();
+              if (!priceContainer || this.pristinePriceHtml == null) return;
 
-              this.price.className = `${this.pristinePrice.className} price--on-sale price--subscription`;
-              if (this.priceRegular) this.priceRegular.textContent = formattedPrice;
-              if (this.priceSale) this.priceSale.textContent = formattedPrice;
-              if (this.priceCompare) this.priceCompare.textContent = compareAtPrice;
+              const className = (this.pristineClassName || 'price')
+                .split(/\s+/)
+                .filter(
+                  (name) =>
+                    name && name !== 'price--on-sale' && name !== 'price--subscription'
+                )
+                .concat(['price--on-sale', 'price--subscription'])
+                .join(' ');
+
+              priceContainer.innerHTML = `
+                <div class="${className}">
+                  <div class="price__container">
+                    <div class="price__sale">
+                      <span class="visually-hidden visually-hidden--inline" data-label="regular"></span>
+                      <span><s class="price-item price-item--regular"></s></span>
+                      <span class="visually-hidden visually-hidden--inline" data-label="sale"></span>
+                      <span class="price-item price-item--sale price-item--last"></span>
+                    </div>
+                  </div>
+                </div>`;
+
+              const price = priceContainer.querySelector('.price');
+              price.querySelector('[data-label="regular"]').textContent = this.dataset.labelRegular;
+              price.querySelector('[data-label="sale"]').textContent = this.dataset.labelSale;
+              price.querySelector('.price-item--regular').textContent = compareAtPrice;
+              price.querySelector('.price-item--sale').textContent = formattedPrice;
             }
 
             update() {
@@ -491,13 +560,14 @@
 
               this.setScheme(this.oneTimeOption, !isSubscription);
               this.setScheme(this.subOption, isSubscription);
+
               this.oneTimePrice.textContent = variant.formatted_price;
 
               if (allocation) {
                 this.subPrice.textContent = allocation.formatted_price;
                 this.hiddenInput.value = this.planSelect.value;
 
-                this.updateBadge(variant, allocation);
+                this.updateBadge(allocation);
                 this.updatePerDeliveryPrice(allocation);
                 this.applyPrice(allocation.formatted_price, variant.formatted_price);
               } else {
@@ -516,12 +586,14 @@
               option.classList.toggle(schemeInactive, !isSelected);
             }
 
-            updateBadge(variant, allocation) {
+            updateBadge(allocation) {
               if (!this.badge) return;
 
-              if (variant.price > allocation.price) {
-                const percent = Math.round(((variant.price - allocation.price) * 100) / variant.price);
-                this.badge.textContent = this.badge.dataset.template.replace('[percent]', percent);
+              if (allocation.discount_percent > 0) {
+                this.badge.textContent = this.badge.dataset.template.replace(
+                  '[percent]',
+                  allocation.discount_percent
+                );
                 this.badge.hidden = false;
               } else {
                 this.badge.hidden = true;
@@ -529,7 +601,12 @@
             }
 
             updatePerDeliveryPrice(allocation) {
-              if (!this.perDeliveryPrice || !allocation.formatted_per_delivery_price) return;
+              if (!this.perDeliveryPrice) return;
+
+              if (!allocation.formatted_per_delivery_price) {
+                this.perDeliveryPrice.hidden = true;
+                return;
+              }
 
               this.perDeliveryPrice.textContent = this.perDeliveryPrice.dataset.template.replace(
                 '[price]',

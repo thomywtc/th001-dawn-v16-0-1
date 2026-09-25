@@ -171,12 +171,9 @@
       "unavailable": "Unavailable",
       "subscription": {
         "label": "Purchase option",
-        "one_time_purchase": "One-time purchase",
-        "subscribe_and_save": "Subscribe & save",
-        "deliver_every": "Deliver every",
+        "frequency": "Delivery frequency",
         "save_percent": "Save {{ percent }}%",
-        "per_delivery": "{{ price }} per delivery",
-        "plan_unavailable": "Not available for this option"
+        "per_delivery": "{{ price }} per delivery"
       },
       "vendor": "Vendor",
       "value_unavailable": "{{ option_value }} - Unavailable",
