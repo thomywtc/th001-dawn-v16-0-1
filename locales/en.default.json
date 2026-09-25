@@ -169,6 +169,15 @@
       "share": "Share this product",
       "sold_out": "Sold out",
       "unavailable": "Unavailable",
+      "subscription": {
+        "label": "Purchase option",
+        "one_time_purchase": "One-time purchase",
+        "subscribe_and_save": "Subscribe & save",
+        "deliver_every": "Deliver every",
+        "save_percent": "Save {{ percent }}%",
+        "per_delivery": "{{ price }} per delivery",
+        "plan_unavailable": "Not available for this option"
+      },
       "vendor": "Vendor",
       "value_unavailable": "{{ option_value }} - Unavailable",
       "variant_sold_out_or_unavailable": "Variant sold out or unavailable",

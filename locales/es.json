@@ -133,6 +133,15 @@
       "share": "Compartir este producto",
       "sold_out": "Agotado",
       "unavailable": "No disponible",
+      "subscription": {
+        "label": "Opción de compra",
+        "one_time_purchase": "Compra única",
+        "subscribe_and_save": "Suscríbete y ahorra",
+        "deliver_every": "Entrega cada",
+        "save_percent": "Ahorra {{ percent }}%",
+        "per_delivery": "{{ price }} por entrega",
+        "plan_unavailable": "No disponible para esta opción"
+      },
       "vendor": "Proveedor",
       "video_exit_message": "{{ title }} abre el video en pantalla completa en la misma ventana.",
       "xr_button": "Ver en tu espacio",

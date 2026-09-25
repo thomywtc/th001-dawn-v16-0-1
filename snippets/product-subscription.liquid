@@ -1,280 +1,545 @@
 {% comment %}
-  Snippet: subscgitription-plan-block.liquid
-  Renders Shopify Selling Plans / Subscription Options
+  Snippet: product-subscription.liquid
+  Renders the Shopify selling plans (one-time purchase / subscribe & save) for the current variant.
+
+  Accepts:
+  - product: {Object} Product object.
+  - block: {Object} The 'subscription' block, used for its color schemes (optional).
+  - product_form_id: {String} Id of the product form the `selling_plan` input must be bound to.
+
+  Usage:
+  {% render 'product-subscription', product: product, block: block, product_form_id: product_form_id %}
 {% endcomment %}
 
-{% assign current_variant = product.selected_or_first_available_variant %}
+{%- if product.selling_plan_groups.size > 0 -%}
+  {%- liquid
+    assign current_variant = product.selected_or_first_available_variant
+    assign use_currency = settings.currency_code_enabled
 
-{% if product.selling_plan_groups.size > 0 %}
-  <div 
-    class="subscription-block-container" 
-    data-subscription-block 
+    if product_form_id == blank
+      assign subscription_form_id = 'product-form-' | append: section.id
+    else
+      assign subscription_form_id = product_form_id
+    endif
+
+    assign inactive_scheme = block.settings.color_scheme | default: settings.color_schemes.first
+    assign active_scheme = block.settings.color_scheme_active | default: settings.color_schemes.first
+
+    assign first_group = product.selling_plan_groups[0]
+    assign first_plan = first_group.selling_plans[0]
+    assign first_allocation = current_variant.selling_plan_allocations | where: 'selling_plan', first_plan | first
+
+    assign first_discount = 0
+    if first_allocation and current_variant.price > first_allocation.price
+      assign first_discount = current_variant.price
+        | minus: first_allocation.price
+        | times: 100.0
+        | divided_by: current_variant.price
+        | round
+    endif
+  -%}
+
+  <product-subscription
+    class="product-subscription"
+    data-subscription-block
     data-section-id="{{ section.id }}"
     data-product-id="{{ product.id }}"
+    data-price-target="price-{{ section.id }}"
+    data-current-variant="{{ current_variant.id }}"
   >
-    {% comment %} JSON Data with Variant Selling Plan Allocations {% endcomment %}
+    {%- comment -%} Prices and selling plan allocations of every variant {%- endcomment -%}
     <script type="application/json" data-subscription-json>
       {
         "variants": {
-          {% for variant in product.variants %}
+          {%- for variant in product.variants -%}
             "{{ variant.id }}": {
               "price": {{ variant.price }},
-              "formatted_price": {{ variant.price | money | json }},
+              "available": {% if variant.available %}true{% else %}false{% endif %},
+              "formatted_price": {% if use_currency %}{{ variant.price | money_with_currency | json }}{% else %}{{ variant.price | money | json }}{% endif %},
               "allocations": {
-                {% for alloc in variant.selling_plan_allocations %}
-                  "{{ alloc.selling_plan.id }}": {
-                    "price": {{ alloc.price }},
-                    "formatted_price": {{ alloc.price | money | json }},
-                    "compare_at_price": {{ alloc.compare_at_price | json }},
-                    "per_delivery_price": {{ alloc.per_delivery_price | money | json }}
-                  }{% unless forloop.last %},{% endunless %}
-                {% endfor %}
+                {%- for allocation in variant.selling_plan_allocations -%}
+                  "{{ allocation.selling_plan.id }}": {
+                    "price": {{ allocation.price }},
+                    "available": {% if allocation.available == false %}false{% else %}true{% endif %},
+                    "formatted_price": {% if use_currency %}{{ allocation.price | money_with_currency | json }}{% else %}{{ allocation.price | money | json }}{% endif %},
+                    "formatted_per_delivery_price": {% if use_currency %}{{ allocation.per_delivery_price | money_with_currency | json }}{% else %}{{ allocation.per_delivery_price | money | json }}{% endif %}
+                  }{%- unless forloop.last -%},{%- endunless -%}
+                {%- endfor -%}
               }
-            }{% unless forloop.last %},{% endunless %}
-          {% endfor %}
+            }{%- unless forloop.last -%},{%- endunless -%}
+          {%- endfor -%}
         }
       }
     </script>
 
-    {% comment %} Option 1: One-Time Purchase {% endcomment %}
-    <div class="subscription-option is-active" data-option-type="one-time">
-      <label class="subscription-label">
-        <div class="subscription-radio-wrapper">
-          <input 
-            type="radio" 
-            name="purchase_option_{{ product.id }}" 
-            value="one-time" 
-            checked 
+    <fieldset class="product-subscription__options">
+      <legend class="visually-hidden">{{ 'products.product.subscription.label' | t }}</legend>
+
+      {%- comment -%} One-time purchase {%- endcomment -%}
+      <div
+        class="product-subscription__option is-active color-{{ inactive_scheme }}"
+        data-option-type="one-time"
+        data-scheme-inactive="color-{{ inactive_scheme }}"
+        data-scheme-active="color-{{ active_scheme }}"
+      >
+        <label class="product-subscription__label" for="SubscriptionOneTime-{{ section.id }}">
+          <input
+            class="visually-hidden"
+            type="radio"
+            id="SubscriptionOneTime-{{ section.id }}"
+            name="purchase_option_{{ product.id }}"
+            value="one-time"
+            checked
             data-subscription-radio
           >
-          <span class="subscription-title">One-time purchase</span>
-        </div>
-        <div class="subscription-price" data-one-time-price>
-          {{ current_variant.price | money }}
-        </div>
-      </label>
-    </div>
-
-    {% comment %} Option 2: Subscribe & Save {% endcomment %}
-    {% assign first_group = product.selling_plan_groups[0] %}
-    {% assign first_plan = first_group.selling_plans[0] %}
-    {% assign first_allocation = current_variant.selling_plan_allocations | where: "selling_plan", first_plan | first %}
-
-    <div class="subscription-option" data-option-type="subscription">
-      <label class="subscription-label">
-        <div class="subscription-radio-wrapper">
-          <input 
-            type="radio" 
-            name="purchase_option_{{ product.id }}" 
-            value="subscription" 
-            data-subscription-radio
-          >
-          <span class="subscription-title">Subscribe & save</span>
-          {% if first_plan.price_adjustments.size > 0 %}
-            <span class="subscription-badge" data-subscription-badge>
-              SAVE {{ first_plan.price_adjustments[0].value }}%
-            </span>
-          {% endif %}
-        </div>
-        <div class="subscription-price" data-subscription-price>
-          {% if first_allocation %}
-            {{ first_allocation.price | money }}
-          {% else %}
-            {{ current_variant.price | money }}
-          {% endif %}
-        </div>
-      </label>
-
-      {% comment %} Dropdown selector for Delivery Frequencies {% endcomment %}
-      <div class="subscription-details" data-subscription-details>
-        <span class="delivery-label">Deliver every</span>
-        <select class="subscription-select" data-selling-plan-select>
-          {% for group in product.selling_plan_groups %}
-            {% for plan in group.selling_plans %}
-              <option value="{{ plan.id }}">
-                {{ plan.name }}
-              </option>
-            {% endfor %}
-          {% endfor %}
-        </select>
+          <span class="product-subscription__radio-dot" aria-hidden="true"></span>
+          <span class="product-subscription__title">{{ 'products.product.subscription.one_time_purchase' | t }}</span>
+          <span class="product-subscription__price" data-one-time-price>
+            {%- if use_currency -%}
+              {{ current_variant.price | money_with_currency }}
+            {%- else -%}
+              {{ current_variant.price | money }}
+            {%- endif -%}
+          </span>
+        </label>
       </div>
-    </div>
 
-    {% comment %} Hidden Input injects into main product form {% endcomment %}
-    <input 
-      type="hidden" 
-      name="selling_plan" 
-      value="" 
-      data-selling-plan-input 
-      form="{{ product_form_id | default: 'product-form' }}"
-      disabled
+      {%- comment -%} Subscribe & save {%- endcomment -%}
+      <div
+        class="product-subscription__option color-{{ inactive_scheme }}"
+        data-option-type="subscription"
+        data-scheme-inactive="color-{{ inactive_scheme }}"
+        data-scheme-active="color-{{ active_scheme }}"
+      >
+        <label class="product-subscription__label" for="SubscriptionPlan-{{ section.id }}">
+          <input
+            class="visually-hidden"
+            type="radio"
+            id="SubscriptionPlan-{{ section.id }}"
+            name="purchase_option_{{ product.id }}"
+            value="subscription"
+            data-subscription-radio
+          >
+          <span class="product-subscription__radio-dot" aria-hidden="true"></span>
+          <span class="product-subscription__title">{{ 'products.product.subscription.subscribe_and_save' | t }}</span>
+          <span
+            class="product-subscription__badge"
+            data-subscription-badge
+            data-template="{{ 'products.product.subscription.save_percent' | t: percent: '[percent]' | escape }}"
+            {% if first_discount <= 0 %}hidden{% endif %}
+          >
+            {%- if first_discount > 0 -%}
+              {{- 'products.product.subscription.save_percent' | t: percent: first_discount -}}
+            {%- endif -%}
+          </span>
+          <span class="product-subscription__price" data-subscription-price>
+            {%- if first_allocation -%}
+              {%- if use_currency -%}
+                {{ first_allocation.price | money_with_currency }}
+              {%- else -%}
+                {{ first_allocation.price | money }}
+              {%- endif -%}
+            {%- elsif use_currency -%}
+              {{ current_variant.price | money_with_currency }}
+            {%- else -%}
+              {{ current_variant.price | money }}
+            {%- endif -%}
+          </span>
+        </label>
+
+        <p
+          class="product-subscription__note"
+          data-per-delivery-price
+          data-template="{{ 'products.product.subscription.per_delivery' | t: price: '[price]' | escape }}"
+          {% unless first_allocation.per_delivery_price %}hidden{% endunless %}
+        >
+          {%- if first_allocation.per_delivery_price -%}
+            {{-
+              'products.product.subscription.per_delivery'
+              | t: price: first_allocation.per_delivery_price
+            -}}
+          {%- endif -%}
+        </p>
+
+        <div class="product-subscription__details">
+          <label class="product-subscription__delivery" for="SubscriptionFrequency-{{ section.id }}">
+            {{- 'products.product.subscription.deliver_every' | t -}}
+          </label>
+          <select
+            class="product-subscription__select"
+            id="SubscriptionFrequency-{{ section.id }}"
+            data-selling-plan-select
+          >
+            {%- for group in product.selling_plan_groups -%}
+              {%- for plan in group.selling_plans -%}
+                {%- liquid
+                  assign plan_allocation = current_variant.selling_plan_allocations
+                    | where: 'selling_plan', plan
+                    | first
+                -%}
+                <option
+                  value="{{ plan.id }}"
+                  {% if plan_allocation == blank or plan_allocation.available == false %}
+                    disabled
+                  {% endif %}
+                >
+                  {{- plan.name -}}
+                </option>
+              {%- endfor -%}
+            {%- endfor -%}
+          </select>
+        </div>
+      </div>
+    </fieldset>
+
+    {%- comment -%}
+      Bound to the product form through the `form` attribute so it travels in the FormData
+      built by product-form.js. An empty value means one-time purchase.
+    {%- endcomment -%}
+    <input
+      type="hidden"
+      name="selling_plan"
+      value=""
+      form="{{ subscription_form_id }}"
+      data-selling-plan-input
     >
-  </div>
 
-  <style>
-    .subscription-block-container {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      margin: 16px 0;
-      font-family: inherit;
-    }
-
-    .subscription-option {
-      border: 1px solid #d1d5db;
-      border-radius: 8px;
-      padding: 14px 16px;
-      cursor: pointer;
-      transition: all 0.2s ease-in-out;
-      background-color: #ffffff;
-    }
-
-    .subscription-option.is-active {
-      border-color: #4b5563;
-      background-color: #f7fee7; /* Light lime green highlight */
-      box-shadow: 0 0 0 1px #4b5563;
-    }
-
-    .subscription-label {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      cursor: pointer;
-      width: 100%;
-    }
-
-    .subscription-radio-wrapper {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .subscription-title {
-      font-weight: 600;
-      font-size: 15px;
-      color: #111827;
-    }
-
-    .subscription-badge {
-      background-color: #dc2626;
-      color: #ffffff;
-      font-size: 11px;
-      font-weight: 700;
-      padding: 2px 8px;
-      border-radius: 12px;
-      text-transform: uppercase;
-    }
-
-    .subscription-price {
-      font-weight: 600;
-      font-size: 16px;
-      color: #111827;
-    }
-
-    .subscription-details {
-      display: none;
-      align-items: center;
-      gap: 10px;
-      margin-top: 12px;
-      padding-left: 28px;
-    }
-
-    .subscription-option.is-active .subscription-details {
-      display: flex;
-    }
-
-    .delivery-label {
-      font-size: 14px;
-      color: #374151;
-    }
-
-    .subscription-select {
-      padding: 6px 12px;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-      background-color: #fff;
-      font-size: 14px;
-      cursor: pointer;
-    }
-  </style>
-
-  <script>
-    document.addEventListener('DOMContentLoaded', () => {
-      const container = document.querySelector('[data-subscription-block]');
-      if (!container) return;
-
-      const jsonData = JSON.parse(container.querySelector('[data-subscription-json]').textContent);
-      const radioButtons = container.querySelectorAll('[data-subscription-radio]');
-      const planSelect = container.querySelector('[data-selling-plan-select]');
-      const hiddenInput = container.querySelector('[data-selling-plan-input]');
-      const oneTimePriceEl = container.querySelector('[data-one-time-price]');
-      const subPriceEl = container.querySelector('[data-subscription-price]');
-      
-      // Global Product Price Selectors (Theme Dawn)
-      const globalPriceElements = document.querySelectorAll('.price-item--regular, .price__regular .price-item');
-
-      let currentVariantId = "{{ current_variant.id }}";
-
-      function updatePricesAndState() {
-        const selectedRadio = container.querySelector('[data-subscription-radio]:checked');
-        const isSubscription = selectedRadio.value === 'subscription';
-        const selectedPlanId = planSelect ? planSelect.value : null;
-
-        // Active class styling
-        container.querySelectorAll('.subscription-option').forEach(opt => {
-          opt.classList.remove('is-active');
-        });
-        selectedRadio.closest('.subscription-option').classList.add('is-active');
-
-        const variantData = jsonData.variants[currentVariantId];
-        if (!variantData) return;
-
-        // 1. One Time Price Update
-        oneTimePriceEl.textContent = variantData.formatted_price;
-
-        // 2. Subscription Price Update
-        let displaySubPrice = variantData.formatted_price;
-        if (selectedPlanId && variantData.allocations[selectedPlanId]) {
-          displaySubPrice = variantData.allocations[selectedPlanId].formatted_price;
-        }
-        subPriceEl.textContent = displaySubPrice;
-
-        // 3. Update Hidden Input and Global Price
-        if (isSubscription && selectedPlanId) {
-          hiddenInput.removeAttribute('disabled');
-          hiddenInput.value = selectedPlanId;
-          
-          // Update Global Price Element on Theme
-          globalPriceElements.forEach(el => el.textContent = displaySubPrice);
-        } else {
-          hiddenInput.setAttribute('disabled', 'true');
-          hiddenInput.value = '';
-          
-          // Reset Global Price Element to Regular Variant Price
-          globalPriceElements.forEach(el => el.textContent = variantData.formatted_price);
-        }
+    <style>
+      .product-subscription {
+        display: flex;
+        flex-direction: column;
+        gap: 1.2rem;
+        margin: 1.6rem 0;
       }
 
-      // Radio Change Listener
-      radioButtons.forEach(radio => {
-        radio.addEventListener('change', updatePricesAndState);
-      });
-
-      // Dropdown Change Listener
-      if (planSelect) {
-        planSelect.addEventListener('change', updatePricesAndState);
+      .product-subscription__options {
+        display: flex;
+        flex-direction: column;
+        gap: 1.2rem;
+        margin: 0;
+        padding: 0;
+        border: 0;
       }
 
-      // Listen to Variant Changes (Dawn architecture support)
-      document.addEventListener('variant:change', (event) => {
-        if (event.detail && event.detail.variant) {
-          currentVariantId = event.detail.variant.id;
-          updatePricesAndState();
-        }
-      });
+      .product-subscription__option {
+        position: relative;
+        display: block;
+        border: var(--inputs-border-width) solid rgba(var(--color-foreground), var(--inputs-border-opacity));
+        border-radius: var(--inputs-radius);
+        padding: 1.4rem 1.6rem;
+        background: var(--gradient-background);
+        transition: box-shadow 0.2s ease-in-out, opacity 0.2s ease-in-out;
+      }
 
-      // Initial Call
-      updatePricesAndState();
-    });
-  </script>
-{% endif %}
+      .product-subscription__option.is-active {
+        box-shadow: 0 0 0 0.1rem rgba(var(--color-foreground), 0.5);
+      }
+
+      .product-subscription__option.is-disabled {
+        opacity: 0.5;
+      }
+
+      .product-subscription__option.is-disabled .product-subscription__label {
+        cursor: not-allowed;
+      }
+
+      .product-subscription__label {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        cursor: pointer;
+      }
+
+      .product-subscription__radio:focus-visible + .product-subscription__radio-dot {
+        outline: 0.2rem solid rgba(var(--color-foreground), 0.5);
+        outline-offset: 0.2rem;
+      }
+
+      .product-subscription__radio-dot {
+        flex: 0 0 auto;
+        width: 1.8rem;
+        height: 1.8rem;
+        border: var(--inputs-border-width) solid rgba(var(--color-foreground), var(--inputs-border-opacity));
+        border-radius: 50%;
+        transition: border-color 0.2s ease-in-out, border-width 0.2s ease-in-out;
+      }
+
+      .product-subscription__option.is-active .product-subscription__radio-dot {
+        border-width: 0.5rem;
+        border-color: rgb(var(--color-foreground));
+      }
+
+      .product-subscription__title {
+        flex: 1 1 auto;
+        color: rgb(var(--color-foreground));
+        font-weight: var(--font-body-weight-bold);
+      }
+
+      .product-subscription__badge {
+        flex: 0 0 auto;
+        padding: 0.2rem 0.8rem;
+        border-radius: 2rem;
+        background-color: rgb(var(--color-button));
+        color: rgb(var(--color-button-text));
+        font-size: 1.1rem;
+        line-height: 1.4;
+        text-transform: uppercase;
+      }
+
+      .product-subscription__price {
+        flex: 0 0 auto;
+        color: rgb(var(--color-foreground));
+        font-weight: var(--font-body-weight-bold);
+      }
+
+      .product-subscription__note {
+        margin: 0.6rem 0 0 2.8rem;
+        color: rgba(var(--color-foreground), 0.75);
+      }
+
+      .product-subscription__details {
+        display: none;
+        align-items: center;
+        gap: 1rem;
+        margin-top: 1.2rem;
+        padding-left: 2.8rem;
+      }
+
+      .product-subscription__option.is-active .product-subscription__details {
+        display: flex;
+      }
+
+      .product-subscription__delivery {
+        color: rgb(var(--color-foreground));
+      }
+
+      .product-subscription__select {
+        max-width: 100%;
+        padding: 0.6rem 3rem 0.6rem 1.2rem;
+        border: var(--inputs-border-width) solid rgba(var(--color-foreground), var(--inputs-border-opacity));
+        border-radius: var(--inputs-radius);
+        background-color: rgb(var(--color-background));
+        color: rgb(var(--color-foreground));
+        font-size: 1.4rem;
+        cursor: pointer;
+      }
+
+      /* Big price block of the section, only while a selling plan is selected */
+      #{{ section.id }} .price--subscription .price__badge-sale,
+      #{{ section.id }} .price--subscription .unit-price {
+        display: none;
+      }
+    </style>
+
+    <script>
+      if (!customElements.get('product-subscription')) {
+        customElements.define(
+          'product-subscription',
+          class ProductSubscription extends HTMLElement {
+            variantChangeUnsubscriber = undefined;
+
+            connectedCallback() {
+              this.addEventListener('change', (event) => {
+                if (event.target.matches('[data-subscription-radio], [data-selling-plan-select]')) {
+                  this.update();
+                }
+              });
+
+              this.json = this.parseJson('[data-subscription-json]');
+              if (!this.json) return;
+
+              this.priceContainer = document.getElementById(this.dataset.priceTarget);
+
+              this.oneTimePrice = this.querySelector('[data-one-time-price]');
+              this.subPrice = this.querySelector('[data-subscription-price]');
+              this.badge = this.querySelector('[data-subscription-badge]');
+              this.perDeliveryPrice = this.querySelector('[data-per-delivery-price]');
+              this.planSelect = this.querySelector('[data-selling-plan-select]');
+              this.hiddenInput = this.querySelector('[data-selling-plan-input]');
+              this.oneTimeOption = this.querySelector('[data-option-type="one-time"]');
+              this.subOption = this.querySelector('[data-option-type="subscription"]');
+              this.subRadio = this.subOption.querySelector('[data-subscription-radio]');
+
+              // `subscribe` only exists once the deferred theme scripts have run
+              if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', () => this.init(), { once: true });
+              } else {
+                this.init();
+              }
+            }
+
+            disconnectedCallback() {
+              this.variantChangeUnsubscriber?.();
+            }
+
+            init() {
+              if (!this.isConnected) return;
+
+              this.variantChangeUnsubscriber = subscribe(PUB_SUB_EVENTS.variantChange, (event) => {
+                if (!this.isConnected) {
+                  this.variantChangeUnsubscriber?.();
+                  return;
+                }
+
+                const nextVariantId = event?.data?.variant?.id;
+                if (!nextVariantId || !this.json.variants[nextVariantId]) return;
+
+                this.updatePlanAvailability();
+                this.rememberPrice();
+                this.update();
+              });
+
+              this.updatePlanAvailability();
+              this.rememberPrice();
+              this.update();
+            }
+
+            parseJson(selector) {
+              try {
+                return JSON.parse(this.querySelector(selector)?.textContent);
+              } catch {
+                return null;
+              }
+            }
+
+            /** Variant selected in the form this block submits to */
+            getFormVariantId() {
+              return this.hiddenInput?.form?.querySelector('input[name="id"]')?.value || this.dataset.currentVariant;
+            }
+
+            getVariant() {
+              return this.json.variants[this.getFormVariantId()];
+            }
+
+            getSelectedAllocation() {
+              const allocation = this.getVariant()?.allocations?.[this.planSelect.value];
+              return allocation?.available === false ? null : allocation;
+            }
+
+            /** Disables the plans the current variant is not subscribed to */
+            updatePlanAvailability() {
+              const allocations = this.getVariant()?.allocations || {};
+              const options = [...this.planSelect.querySelectorAll('option')];
+              const hasPlans = Object.keys(allocations).length > 0;
+
+              options.forEach((option) => {
+                option.disabled = allocations[option.value]?.available === false;
+              });
+
+              this.subOption.classList.toggle('is-disabled', !hasPlans);
+              this.subRadio.disabled = !hasPlans;
+
+              // The chosen frequency is gone on this variant, fall back to an available one
+              if (!this.getSelectedAllocation()) {
+                const availableOption = options.find((option) => !option.disabled);
+                if (availableOption) this.planSelect.value = availableOption.value;
+              }
+
+              if (!this.getSelectedAllocation()) {
+                this.oneTimeOption.querySelector('[data-subscription-radio]').checked = true;
+              }
+            }
+
+            /**
+             * Dawn replaces the whole content of the price block on every variant change,
+             * so the nodes are queried again and the pristine markup is captured right
+             * before the selling plan price is applied.
+             */
+            rememberPrice() {
+              this.price = this.priceContainer?.querySelector('.price');
+              if (!this.price) return;
+
+              this.priceRegular = this.price.querySelector('.price__regular .price-item--regular');
+              this.priceSale = this.price.querySelector('.price__sale .price-item--sale');
+              this.priceCompare = this.price.querySelector('.price__sale .price-item--regular');
+
+              this.pristinePrice = {
+                className: this.price.className,
+                regular: this.priceRegular?.textContent,
+                sale: this.priceSale?.textContent,
+                compare: this.priceCompare?.textContent,
+              };
+            }
+
+            restorePrice() {
+              if (!this.price || !this.pristinePrice) return;
+
+              this.price.className = this.pristinePrice.className;
+              if (this.priceRegular) this.priceRegular.textContent = this.pristinePrice.regular;
+              if (this.priceSale) this.priceSale.textContent = this.pristinePrice.sale;
+              if (this.priceCompare) this.priceCompare.textContent = this.pristinePrice.compare;
+            }
+
+            applyPrice(formattedPrice, compareAtPrice) {
+              if (!this.price || !this.pristinePrice) return;
+
+              this.price.className = `${this.pristinePrice.className} price--on-sale price--subscription`;
+              if (this.priceRegular) this.priceRegular.textContent = formattedPrice;
+              if (this.priceSale) this.priceSale.textContent = formattedPrice;
+              if (this.priceCompare) this.priceCompare.textContent = compareAtPrice;
+            }
+
+            update() {
+              const variant = this.getVariant();
+              if (!variant) return;
+
+              const isSubscription = this.subRadio.checked && !this.subRadio.disabled;
+              const allocation = isSubscription ? this.getSelectedAllocation() : null;
+
+              this.oneTimeOption.classList.toggle('is-active', !isSubscription);
+              this.subOption.classList.toggle('is-active', isSubscription);
+
+              this.setScheme(this.oneTimeOption, !isSubscription);
+              this.setScheme(this.subOption, isSubscription);
+              this.oneTimePrice.textContent = variant.formatted_price;
+
+              if (allocation) {
+                this.subPrice.textContent = allocation.formatted_price;
+                this.hiddenInput.value = this.planSelect.value;
+
+                this.updateBadge(variant, allocation);
+                this.updatePerDeliveryPrice(allocation);
+                this.applyPrice(allocation.formatted_price, variant.formatted_price);
+              } else {
+                this.subPrice.textContent = variant.formatted_price;
+                this.badge.hidden = true;
+                this.perDeliveryPrice.hidden = true;
+                this.hiddenInput.value = '';
+                this.restorePrice();
+              }
+            }
+
+            setScheme(option, isSelected) {
+              const { schemeActive, schemeInactive } = option.dataset;
+
+              option.classList.toggle(schemeActive, isSelected);
+              option.classList.toggle(schemeInactive, !isSelected);
+            }
+
+            updateBadge(variant, allocation) {
+              if (!this.badge) return;
+
+              if (variant.price > allocation.price) {
+                const percent = Math.round(((variant.price - allocation.price) * 100) / variant.price);
+                this.badge.textContent = this.badge.dataset.template.replace('[percent]', percent);
+                this.badge.hidden = false;
+              } else {
+                this.badge.hidden = true;
+              }
+            }
+
+            updatePerDeliveryPrice(allocation) {
+              if (!this.perDeliveryPrice || !allocation.formatted_per_delivery_price) return;
+
+              this.perDeliveryPrice.textContent = this.perDeliveryPrice.dataset.template.replace(
+                '[price]',
+                allocation.formatted_per_delivery_price
+              );
+              this.perDeliveryPrice.hidden = false;
+            }
+          }
+        );
+      }
+    </script>
+  </product-subscription>
+{%- endif -%}
