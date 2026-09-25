@@ -1,0 +1,280 @@
+{% comment %}
+  Snippet: subscgitription-plan-block.liquid
+  Renders Shopify Selling Plans / Subscription Options
+{% endcomment %}
+
+{% assign current_variant = product.selected_or_first_available_variant %}
+
+{% if product.selling_plan_groups.size > 0 %}
+  <div 
+    class="subscription-block-container" 
+    data-subscription-block 
+    data-section-id="{{ section.id }}"
+    data-product-id="{{ product.id }}"
+  >
+    {% comment %} JSON Data with Variant Selling Plan Allocations {% endcomment %}
+    <script type="application/json" data-subscription-json>
+      {
+        "variants": {
+          {% for variant in product.variants %}
+            "{{ variant.id }}": {
+              "price": {{ variant.price }},
+              "formatted_price": {{ variant.price | money | json }},
+              "allocations": {
+                {% for alloc in variant.selling_plan_allocations %}
+                  "{{ alloc.selling_plan.id }}": {
+                    "price": {{ alloc.price }},
+                    "formatted_price": {{ alloc.price | money | json }},
+                    "compare_at_price": {{ alloc.compare_at_price | json }},
+                    "per_delivery_price": {{ alloc.per_delivery_price | money | json }}
+                  }{% unless forloop.last %},{% endunless %}
+                {% endfor %}
+              }
+            }{% unless forloop.last %},{% endunless %}
+          {% endfor %}
+        }
+      }
+    </script>
+
+    {% comment %} Option 1: One-Time Purchase {% endcomment %}
+    <div class="subscription-option is-active" data-option-type="one-time">
+      <label class="subscription-label">
+        <div class="subscription-radio-wrapper">
+          <input 
+            type="radio" 
+            name="purchase_option_{{ product.id }}" 
+            value="one-time" 
+            checked 
+            data-subscription-radio
+          >
+          <span class="subscription-title">One-time purchase</span>
+        </div>
+        <div class="subscription-price" data-one-time-price>
+          {{ current_variant.price | money }}
+        </div>
+      </label>
+    </div>
+
+    {% comment %} Option 2: Subscribe & Save {% endcomment %}
+    {% assign first_group = product.selling_plan_groups[0] %}
+    {% assign first_plan = first_group.selling_plans[0] %}
+    {% assign first_allocation = current_variant.selling_plan_allocations | where: "selling_plan", first_plan | first %}
+
+    <div class="subscription-option" data-option-type="subscription">
+      <label class="subscription-label">
+        <div class="subscription-radio-wrapper">
+          <input 
+            type="radio" 
+            name="purchase_option_{{ product.id }}" 
+            value="subscription" 
+            data-subscription-radio
+          >
+          <span class="subscription-title">Subscribe & save</span>
+          {% if first_plan.price_adjustments.size > 0 %}
+            <span class="subscription-badge" data-subscription-badge>
+              SAVE {{ first_plan.price_adjustments[0].value }}%
+            </span>
+          {% endif %}
+        </div>
+        <div class="subscription-price" data-subscription-price>
+          {% if first_allocation %}
+            {{ first_allocation.price | money }}
+          {% else %}
+            {{ current_variant.price | money }}
+          {% endif %}
+        </div>
+      </label>
+
+      {% comment %} Dropdown selector for Delivery Frequencies {% endcomment %}
+      <div class="subscription-details" data-subscription-details>
+        <span class="delivery-label">Deliver every</span>
+        <select class="subscription-select" data-selling-plan-select>
+          {% for group in product.selling_plan_groups %}
+            {% for plan in group.selling_plans %}
+              <option value="{{ plan.id }}">
+                {{ plan.name }}
+              </option>
+            {% endfor %}
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    {% comment %} Hidden Input injects into main product form {% endcomment %}
+    <input 
+      type="hidden" 
+      name="selling_plan" 
+      value="" 
+      data-selling-plan-input 
+      form="{{ product_form_id | default: 'product-form' }}"
+      disabled
+    >
+  </div>
+
+  <style>
+    .subscription-block-container {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin: 16px 0;
+      font-family: inherit;
+    }
+
+    .subscription-option {
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      padding: 14px 16px;
+      cursor: pointer;
+      transition: all 0.2s ease-in-out;
+      background-color: #ffffff;
+    }
+
+    .subscription-option.is-active {
+      border-color: #4b5563;
+      background-color: #f7fee7; /* Light lime green highlight */
+      box-shadow: 0 0 0 1px #4b5563;
+    }
+
+    .subscription-label {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      width: 100%;
+    }
+
+    .subscription-radio-wrapper {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .subscription-title {
+      font-weight: 600;
+      font-size: 15px;
+      color: #111827;
+    }
+
+    .subscription-badge {
+      background-color: #dc2626;
+      color: #ffffff;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 12px;
+      text-transform: uppercase;
+    }
+
+    .subscription-price {
+      font-weight: 600;
+      font-size: 16px;
+      color: #111827;
+    }
+
+    .subscription-details {
+      display: none;
+      align-items: center;
+      gap: 10px;
+      margin-top: 12px;
+      padding-left: 28px;
+    }
+
+    .subscription-option.is-active .subscription-details {
+      display: flex;
+    }
+
+    .delivery-label {
+      font-size: 14px;
+      color: #374151;
+    }
+
+    .subscription-select {
+      padding: 6px 12px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      background-color: #fff;
+      font-size: 14px;
+      cursor: pointer;
+    }
+  </style>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const container = document.querySelector('[data-subscription-block]');
+      if (!container) return;
+
+      const jsonData = JSON.parse(container.querySelector('[data-subscription-json]').textContent);
+      const radioButtons = container.querySelectorAll('[data-subscription-radio]');
+      const planSelect = container.querySelector('[data-selling-plan-select]');
+      const hiddenInput = container.querySelector('[data-selling-plan-input]');
+      const oneTimePriceEl = container.querySelector('[data-one-time-price]');
+      const subPriceEl = container.querySelector('[data-subscription-price]');
+      
+      // Global Product Price Selectors (Theme Dawn)
+      const globalPriceElements = document.querySelectorAll('.price-item--regular, .price__regular .price-item');
+
+      let currentVariantId = "{{ current_variant.id }}";
+
+      function updatePricesAndState() {
+        const selectedRadio = container.querySelector('[data-subscription-radio]:checked');
+        const isSubscription = selectedRadio.value === 'subscription';
+        const selectedPlanId = planSelect ? planSelect.value : null;
+
+        // Active class styling
+        container.querySelectorAll('.subscription-option').forEach(opt => {
+          opt.classList.remove('is-active');
+        });
+        selectedRadio.closest('.subscription-option').classList.add('is-active');
+
+        const variantData = jsonData.variants[currentVariantId];
+        if (!variantData) return;
+
+        // 1. One Time Price Update
+        oneTimePriceEl.textContent = variantData.formatted_price;
+
+        // 2. Subscription Price Update
+        let displaySubPrice = variantData.formatted_price;
+        if (selectedPlanId && variantData.allocations[selectedPlanId]) {
+          displaySubPrice = variantData.allocations[selectedPlanId].formatted_price;
+        }
+        subPriceEl.textContent = displaySubPrice;
+
+        // 3. Update Hidden Input and Global Price
+        if (isSubscription && selectedPlanId) {
+          hiddenInput.removeAttribute('disabled');
+          hiddenInput.value = selectedPlanId;
+          
+          // Update Global Price Element on Theme
+          globalPriceElements.forEach(el => el.textContent = displaySubPrice);
+        } else {
+          hiddenInput.setAttribute('disabled', 'true');
+          hiddenInput.value = '';
+          
+          // Reset Global Price Element to Regular Variant Price
+          globalPriceElements.forEach(el => el.textContent = variantData.formatted_price);
+        }
+      }
+
+      // Radio Change Listener
+      radioButtons.forEach(radio => {
+        radio.addEventListener('change', updatePricesAndState);
+      });
+
+      // Dropdown Change Listener
+      if (planSelect) {
+        planSelect.addEventListener('change', updatePricesAndState);
+      }
+
+      // Listen to Variant Changes (Dawn architecture support)
+      document.addEventListener('variant:change', (event) => {
+        if (event.detail && event.detail.variant) {
+          currentVariantId = event.detail.variant.id;
+          updatePricesAndState();
+        }
+      });
+
+      // Initial Call
+      updatePricesAndState();
+    });
+  </script>
+{% endif %}

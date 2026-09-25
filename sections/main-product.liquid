@@ -688,7 +688,10 @@
                   </product-recommendations>
                 {%- when 'icon-with-text' -%}
                   {% render 'icon-with-text', block: block %}
+                {%- when 'subscription' -%}
+                  {% render 'product-subscription', product: product %}
               {%- endcase -%}
+
             {%- endfor -%}
             <a href="{{ product.url }}" class="link product__view-details animate-arrow">
               {{ 'products.product.view_full_details' | t }}
