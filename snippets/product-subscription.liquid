@@ -134,7 +134,7 @@
           <span class="product-subscription__radio-dot" aria-hidden="true"></span>
           <span class="product-subscription__title">{{ subscribe_label }}</span>
           <span
-            class="product-subscription__badge color-{{ settings.sale_badge_color_scheme }}"
+            class="product-subscription__badge badge price__badge-sale color-{{ settings.sale_badge_color_scheme }}"
             data-subscription-badge
             data-template="{{ 'products.product.subscription.save_percent' | t: percent: '[percent]' | escape }}"
             {% if first_discount <= 0 %}hidden{% endif %}
