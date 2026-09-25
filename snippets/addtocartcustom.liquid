@@ -1,0 +1,22 @@
+{% assign product_handle = 'yellow' %}
+{% assign producttime = all_products[product_handle] %}
+<fulfillment-time class="form__field wrafulfillmentTime">
+  <label for="fulfillmentTime" class="form__label">Add a specific delivery time for 29.00 (optional)</label>
+  <div class="select">
+    <select id="fulfillmentTime" class="form__select select__select" name="fulfillmentTime">
+      <option value="">Select an option</option>
+      {% for variant in producttime.variants %}
+        {% if variant.available %}
+          {% assign existvar = 0 %}
+          {%- for item in cart.items -%}
+            {% if variant.id == item.variant_id %}
+              {% assign existvar = 1 %}
+            {% endif %}
+          {% endfor %} 
+          <option value="{{ variant.id }}" {% if existvar == 1 %}selected {% endif %}>{{ variant.title }}</option>
+        {% endif %}
+      {% endfor %} 
+    </select>
+  </div>
+  <button class='button'>add to cart</button>
+</fulfillment-time>

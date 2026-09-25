@@ -1,0 +1,240 @@
+.product__info-container .product-form__buttons .comper-at-price-cust{
+  display:none;
+}
+.wrapperOptions{
+  display: flex;
+  flex-wrap:wrap;
+  gap: 25px;
+}
+.wrapperOptions label{
+  width:100%;
+  display: flex;
+  justify-content: space-between;
+  border: 2px solid #ccc;
+  border-radius: 8px;
+  padding: 8px 15px;
+  cursor:pointer;
+  position:relative;
+  align-items: center;
+}
+.wrapperOptions label input[type="radio"]{
+  position: absolute;
+  visibility: hidden;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+.wrapperOptions label:has(input[type="radio"]:checked){
+  border-color: #56a278;
+}
+.wrapperOptions .radiocircle{
+  border-color: #8f8f9d;
+  border-radius: 50%;
+  width: 18px;
+  height: 18px;
+  border-width: 2px;
+  border-style: solid;
+  position:relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+.wrapperOptions .radiocircle:before{
+  content:"";
+   background-color: transparent;
+  width: 10px;
+  height: 10px;
+  display: block;
+  border-radius: 50%;
+}
+.wrapperOptions input[type="radio"]:checked + .radiocircle{
+  border-color: #56a278;
+}
+.wrapperOptions input[type="radio"]:checked + .radiocircle:before{
+  background-color: #56a278;
+}
+
+.wrapperOptions label.variant1:after, .shopify_subscriptions_app_block_label .shopify_subscriptions_app_block_label_children li:nth-child(2) label:after{
+  content: "MOST POPULAR";
+  position: absolute;
+  top: -18px;
+  left: 20px;
+  background: #e8f6e4;
+  border-radius: 20px;
+  padding: 5px 10px;
+  font-size: 13px;
+  line-height: 14px;
+  color: #57ba3d;
+}
+.wrapperOptions label.variant2:after, .shopify_subscriptions_app_block_label .shopify_subscriptions_app_block_label_children li:nth-child(3) label:after{
+  content:"BEST VALUE";
+  position: absolute;
+  top: -18px;
+  left: 20px;
+  background: #e8f6e4;
+  border-radius: 20px;
+  padding: 5px 10px;
+  font-size: 13px;
+  line-height: 14px;
+  color: #57ba3d;
+}
+.leftcont{
+  display:flex;
+  gap:13px;
+  align-items: center;
+}
+.wrapperBottom{
+  margin-top:15px;
+  width: 100%;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.leftcont .ltitle{
+  color:rgb(var(--color-foreground));
+  font-weight: 700;
+  font-size:1.5rem;
+  line-height: 1.7rem;
+  margin-bottom: 3px;
+}
+.leftcont .lprice{
+  font-size: 12px;
+  line-height: 15px;
+}
+.rightcont .saveprice{
+  background-color: #ebf4e8;
+  padding: 2px 6px;
+  border-radius: 10px;
+  border: 1px solid #000;
+  font-size: 13px;
+  color: #000;
+  text-align: center;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-wrap: nowrap;
+}
+/* ====================================== SUSCRIPTION BOX ====================================== */
+.shopify_subscriptions_app_container fieldset.shopify_subscriptions_fieldset .shopify_subscriptions_app_block_label{
+  border:none!important;
+  padding: 0;
+  margin: 0;
+}
+.shopify_subscriptions_app_block_label .shopify_subscriptions_app_block_label_children{
+  padding:0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 25px;
+}
+.shopify_subscriptions_app_block_label .shopify_subscriptions_app_block_label_children li{
+  width: 100%;
+}
+.shopify_subscriptions_app_block_label .shopify_subscriptions_app_block_label_children li label{
+  width: 100%;
+  display: flex;
+  border: 2px solid #ccc;
+  border-radius: 8px;
+  padding: 8px 15px;
+  cursor: pointer;
+  position: relative;
+  gap:13px;
+  align-items: center;
+}
+.shopify_subscriptions_app_block_label .shopify_subscriptions_app_block_label_children li label:has(input[type="radio"]:checked){
+  border-color:#56a278;
+}
+.shopify_subscriptions_app_block_label .shopify_subscriptions_app_block_label_children li label input{
+  margin:0;
+  top:-1px;
+}
+.shopify_subscriptions_app_block_label:has(input[data-radio-type="one_time_purchase"]){
+  display:none;
+}
+.shopify_subscriptions_app_container .shopify_subscriptions_app__title, .shopify_subscriptions_app_container .shopify_subscriptions_purchase_option_wrapper>label{
+  display:none;
+}
+.shopify_subscriptions_app_container .shopify_subscriptions_purchase_option_wrapper> .shopify_subscriptions_in_widget_price{
+  display:none;
+}
+.shopify_subscriptions_app_container .wrapperText{
+  display: flex;
+  width: 100%;
+  justify-content: space-between;
+  align-items: center;
+}
+/* ====================================== The switch ====================================== */
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 60px;
+  height: 34px;
+}
+
+/* Hide default HTML checkbox */
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+/* The slider */
+.switch .slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #ccc;
+  -webkit-transition: .4s;
+  transition: .4s;
+}
+
+.switch .slider:before {
+  position: absolute;
+  content: "";
+  height: 26px;
+  width: 26px;
+  left: 4px;
+  bottom: 4px;
+  background-color: white;
+  -webkit-transition: .4s;
+  transition: .4s;
+}
+
+.switch input:checked + .slider {
+  background-color: #56a278;
+}
+
+.switch input:focus + .slider {
+  box-shadow: 0 0 1px #2196F3;
+}
+.switch input:checked + .slider:before {
+  -webkit-transform: translateX(26px);
+  -ms-transform: translateX(26px);
+  transform: translateX(26px);
+}
+
+/* Rounded sliders */
+.switch .slider.round {
+  border-radius: 34px;
+}
+.switch .slider.round:before {
+  border-radius: 50%;
+} 
+@media (width <= 767px) {
+  .leftcont .ltitle{
+    font-size:1.3rem;
+    line-height: 1.5rem;
+  }
+  .rightcont .saveprice{
+    font-size:11px;
+  }
+  .wrapperBottom .text{
+    font-size:12px;
+  }
+}
+
+pumper-bundle{
+  display:none;
+}
+

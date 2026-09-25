@@ -1,0 +1,171 @@
+<script>
+
+ document.addEventListener("DOMContentLoaded", function () {
+    const appBlock1 = document.querySelector(".shopify_subscriptions_app_block");
+    if (!appBlock1) return;
+
+    const planCard = appBlock1.querySelector(".plan_card");
+    if (planCard) {
+        const computedStyle = window.getComputedStyle(planCard);
+
+        // Extract attributes directly from the app configuration
+        const bodyColor = computedStyle.color;
+        const dividerColor = computedStyle.borderColor;
+        const backgroundColor = computedStyle.backgroundColor;
+        const borderWidth = computedStyle.borderTopWidth || computedStyle.borderWidth;
+        const borderRadius = computedStyle.borderRadius;
+
+        // Assign CSS Variables
+        appBlock1.style.setProperty("--app-color-body", bodyColor);
+        appBlock1.style.setProperty("--app-color-dividers", dividerColor);
+        appBlock1.style.setProperty("--app-color-bg", backgroundColor);
+        appBlock1.style.setProperty("--app-border-width", borderWidth);
+        appBlock1.style.setProperty("--app-border-radius", borderRadius);
+        appBlock1.classList.add("colorssave");
+    }
+
+  function applyAppCustomSettings() {
+    const appBlock = document.querySelector(".shopify_subscriptions_app_block");
+    if (!appBlock) return;
+
+    // Make hidden prices visible
+    const hiddenPrices = appBlock.querySelectorAll(".shopify_subscriptions_app_block--hidden");
+    hiddenPrices.forEach((price) => {
+      price.classList.remove("shopify_subscriptions_app_block--hidden");
+      price.removeAttribute("aria-hidden");
+    });
+
+    // Update active class on radio change
+    const radioInputs = appBlock.querySelectorAll('input[type="radio"]');
+    radioInputs.forEach((radio) => {
+      const group = radio.closest(".subscription_group");
+      
+      if (radio.checked && group) {
+        group.classList.add("is-selected");
+      } else if (group) {
+        group.classList.remove("is-selected");
+      }
+
+      // Add listener if not already attached
+      if (!radio.dataset.listenerAttached) {
+        radio.addEventListener("change", function () {
+          radioInputs.forEach((r) => {
+            const g = r.closest(".subscription_group");
+            if (g) g.classList.remove("is-selected");
+          });
+          if (this.checked && group) {
+            group.classList.add("is-selected");
+          }
+        });
+        radio.dataset.listenerAttached = "true";
+      }
+    });
+
+    // Add Discount Badge
+    const subscriptionGroup = appBlock.querySelectorAll(".subscription_group")[1];
+    if (subscriptionGroup) {
+      const labelSpan = subscriptionGroup.querySelector(".group_list_item span");
+
+      if (labelSpan && !subscriptionGroup.querySelector(".custom_discount_badge")) {
+        const textContent = labelSpan.textContent;
+        const match = textContent.match(/(\d+%\s*off)/i);
+        
+        labelSpan.textContent = "Subscribe & save ";
+
+        const badge = document.createElement("span");
+        badge.className = "custom_discount_badge";
+        badge.textContent = match ? `SAVE ${match[0].replace(/off/i, "").trim()}` : "SAVE";
+        labelSpan.appendChild(badge);
+      }
+    }
+  }
+
+  // Initial execution
+  applyAppCustomSettings();
+
+  // MutationObserver for variant changes
+  const targetNode = document.querySelector(".shopify_subscriptions_app_container");
+  if (targetNode) {
+    const observer = new MutationObserver(function () {
+      observer.disconnect();
+      applyAppCustomSettings();
+      observer.observe(targetNode, { childList: true, subtree: true });
+    });
+    observer.observe(targetNode, { childList: true, subtree: true });
+  }
+});
+</script>
+
+<style>
+    /* Clean outer container */
+    .shopify_subscriptions_fieldset {
+        border: none !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+
+    .shopify_subscriptions_app_block.colorssave .plan_card {
+        border: none !important;
+        background: transparent !important;
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 12px !important;
+        padding: 0 !important;
+    }
+
+    /* Base Card Style (Inactive) */
+    .shopify_subscriptions_app_block .subscription_group {
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: center !important;
+        border-style: solid !important;
+        border-width: var(--app-border-width, 1px) !important;
+        border-color: var(--app-color-dividers, #d1d5db);
+        border-radius: var(--app-border-radius, 5px) !important;
+        color: var(--app-color-body, #232323) !important;
+        padding: 14px 18px !important;
+        background-color: #ffffff !important;
+        margin: 0 !important;
+        transition: all 0.2s ease-in-out !important;
+        box-sizing: border-box !important;
+        .title_and_price_wrapper{
+            align-items: center;
+            .custom_radio_button {
+                margin:0;
+                .group_name{
+                    display: flex;
+                    align-items: center;
+                    b, strong{
+                        background-color: rgb(198, 53, 53);
+                        color: rgb(255, 255, 255);
+                        text-transform: uppercase;
+                        font-size: 9px;
+                        margin-left: 1em;
+                        border-radius: 15px;
+                        padding: 0 5px;
+                        display: flex;
+                        height: auto;
+                        border: none;
+                    }
+                }
+            }
+        }
+        .group_dropdown{
+            display:none;
+            background-color: #fff;
+            border: 1px solid;
+            border-color: var(--app-color-dividers, #000) !important;
+            max-width: fit-content;
+            font-size: 1.2rem;
+        }
+    }
+    /* Active / Selected Card Style */
+    .shopify_subscriptions_app_block .subscription_group.is-selected,
+    .shopify_subscriptions_app_block .subscription_group:has(input[type="radio"]:checked) {
+        background-color: var(--app-color-bg, #fff) !important;
+        border-color: var(--app-color-dividers, #000) !important;
+        .group_dropdown{
+            display:block;
+        }
+    }
+</style>
