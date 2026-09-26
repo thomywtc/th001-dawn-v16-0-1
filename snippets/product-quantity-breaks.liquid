@@ -1,0 +1,282 @@
+{% comment %}
+  Snippet: quantity-breaks-block.liquid
+  Renders Volume / Quantity Breaks with static JSON discount configuration
+{% endcomment %}
+
+{% assign current_variant = product.selected_or_first_available_variant %}
+
+{% comment %} Configuración JSON de Tiers / Cantidades {% endcomment %}
+{% capture quantity_tiers_json %}
+[
+  {
+    "quantity": 1,
+    "title": "Single (3.785 L)",
+    "badge": "TRY IT FIRST",
+    "badge_color": "#dc2626",
+    "discount_percent": 0,
+    "volume_liters": 3.785,
+    "volume_gallons": 1.0
+  },
+  {
+    "quantity": 2,
+    "title": "2-Pack (7.57 L)",
+    "badge": "MOST POPULAR",
+    "badge_color": "#6b5b52",
+    "discount_percent": 10,
+    "volume_liters": 7.57,
+    "volume_gallons": 2.0
+  },
+  {
+    "quantity": 4,
+    "title": "4-Pack (15.14 L)",
+    "badge": "BEST VALUE",
+    "badge_color": "#84cc16",
+    "discount_percent": 15,
+    "volume_liters": 15.14,
+    "volume_gallons": 4.0
+  }
+]
+{% endcapture %}
+
+<div 
+  class="quantity-breaks-wrapper" 
+  data-quantity-breaks 
+  data-variant-price="{{ current_variant.price }}"
+  data-currency-symbol="{{ cart.currency.symbol }}"
+>
+  <h3 class="quantity-breaks-title">Select Quantity</h3>
+
+  <script type="application/json" data-quantity-tiers-json>
+    {{ quantity_tiers_json }}
+  </script>
+
+  <div class="quantity-breaks-options">
+    {% assign tiers = quantity_tiers_json | parse_json %}
+    {% for tier in tiers %}
+      {% assign qty = tier.quantity %}
+      {% assign raw_price = current_variant.price | times: qty %}
+      {% assign discount_factor = 100 | minus: tier.discount_percent %}
+      {% assign discounted_price = raw_price | times: discount_factor | divided_by: 100 %}
+
+      <div 
+        class="quantity-break-option {% if forloop.last %}is-active{% endif %}" 
+        data-quantity="{{ tier.quantity }}"
+        data-discount="{{ tier.discount_percent }}"
+      >
+        {% if tier.badge != blank %}
+          <span 
+            class="quantity-break-badge" 
+            style="background-color: {{ tier.badge_color | default: '#000000' }};"
+          >
+            {{ tier.badge }}
+          </span>
+        {% endif %}
+
+        <div class="quantity-break-content">
+          <div class="quantity-break-radio-col">
+            <input 
+              type="radio" 
+              name="quantity_break_option" 
+              id="qb_option_{{ forloop.index }}" 
+              value="{{ tier.quantity }}"
+              {% if forloop.last %}checked{% endif %}
+            >
+          </div>
+
+          <div class="quantity-break-info">
+            <label for="qb_option_{{ forloop.index }}" class="qb-title">
+              {{ tier.title }}
+            </label>
+            
+            <div class="qb-unit-price" data-price-per-liter>
+              {% comment %} Calculado por JS para precisión de moneda {% endcomment %}
+            </div>
+
+            <div class="qb-sub-pill" data-price-per-gallon>
+              {% comment %} Calculado por JS para precisión de moneda {% endcomment %}
+            </div>
+          </div>
+
+          <div class="quantity-break-image">
+            {% if tier.quantity == 1 %}
+              <img src="{{ product.featured_image | image_url: width: 200 }}" alt="{{ tier.title }}" loading="lazy">
+            {% else %}
+              <img src="{{ product.featured_image | image_url: width: 200 }}" alt="{{ tier.title }}" loading="lazy">
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+</div>
+
+<style>
+  .quantity-breaks-wrapper {
+    margin: 20px 0;
+    font-family: inherit;
+  }
+
+  .quantity-breaks-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: #1a202c;
+    margin-bottom: 16px;
+  }
+
+  .quantity-breaks-options {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .quantity-break-option {
+    position: relative;
+    border: 1.5px solid #27272a;
+    border-radius: 12px;
+    padding: 16px;
+    background-color: #ffffff;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .quantity-break-option.is-active {
+    background-color: #f7fee7; /* Fondo verde claro seleccionado */
+    border-color: #1a202c;
+  }
+
+  .quantity-break-badge {
+    position: absolute;
+    top: -12px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 12px;
+    border-radius: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    z-index: 2;
+  }
+
+  .quantity-break-content {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .quantity-break-radio-col input[type="radio"] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    accent-color: #1a202c;
+  }
+
+  .quantity-break-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .qb-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: #000000;
+    cursor: pointer;
+  }
+
+  .qb-unit-price {
+    font-size: 14px;
+    color: #374151;
+  }
+
+  .qb-sub-pill {
+    display: inline-block;
+    background-color: #18181b;
+    color: #ffffff;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 16px;
+    width: fit-content;
+    margin-top: 4px;
+  }
+
+  .quantity-break-image img {
+    max-width: 90px;
+    height: auto;
+    object-fit: contain;
+  }
+</style>
+
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const container = document.querySelector('[data-quantity-breaks]');
+    if (!container) return;
+
+    const tiersData = JSON.parse(container.querySelector('[data-quantity-tiers-json]').textContent);
+    const options = container.querySelectorAll('.quantity-break-option');
+    const symbol = container.dataset.currencySymbol || '$';
+
+    function formatMoney(cents) {
+      return symbol + (cents / 100).toFixed(2);
+    }
+
+    function calculateAndRenderPrices() {
+      const basePriceCents = parseFloat(container.dataset.variantPrice);
+
+      options.forEach((optionEl, index) => {
+        const tier = tiersData[index];
+        const qty = tier.quantity;
+        const discountPercent = tier.discount_percent;
+
+        // Total con descuento
+        const rawTotalCents = basePriceCents * qty;
+        const totalCents = rawTotalCents * ((100 - discountPercent) / 100);
+
+        // Precios unitarios/volumen
+        const pricePerLiter = totalCents / tier.volume_liters;
+        const pricePerGallon = totalCents / tier.volume_gallons;
+
+        const literEl = optionEl.querySelector('[data-price-per-liter]');
+        const gallonEl = optionEl.querySelector('[data-price-per-gallon]');
+
+        if (literEl) literEl.textContent = `${formatMoney(pricePerLiter)} / liter`;
+        if (gallonEl) gallonEl.textContent = `${formatMoney(pricePerGallon)} / gallon`;
+      });
+    }
+
+    function selectTier(selectedOption) {
+      options.forEach(opt => opt.classList.remove('is-active'));
+      selectedOption.classList.add('is-active');
+
+      const radio = selectedOption.querySelector('input[type="radio"]');
+      if (radio) radio.checked = true;
+
+      const qty = selectedOption.dataset.quantity;
+
+      // Actualizar el selector de cantidad nativo del tema de Shopify
+      const mainQtyInputs = document.querySelectorAll('input[name="quantity"], quantity-input input');
+      mainQtyInputs.forEach(input => {
+        input.value = qty;
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+    }
+
+    options.forEach(option => {
+      option.addEventListener('click', () => selectTier(option));
+    });
+
+    // Escuchar cuando cambie de variante para recalcular precios
+    document.addEventListener('variant:change', (e) => {
+      if (e.detail && e.detail.variant) {
+        container.dataset.variantPrice = e.detail.variant.price;
+        calculateAndRenderPrices();
+      }
+    });
+
+    // Render Inicial
+    calculateAndRenderPrices();
+  });
+</script>
