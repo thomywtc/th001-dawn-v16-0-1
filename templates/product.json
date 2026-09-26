@@ -34,11 +34,21 @@
         "quantity_breaks_w3k6LW": {
           "type": "quantity-breaks",
           "settings": {
+            "heading": "Select Quantity",
             "color_scheme": "background-1",
             "color_scheme_active": "background-2",
-            "one_time_purchase_label": "One-time purchase",
-            "subscribe_and_save_label": "Subscribe & save",
-            "frequency_label": ""
+            "tier_1_title": "Single",
+            "tier_1_qty": 1,
+            "tier_1_discount": 0,
+            "tier_2_title": "2-Pack",
+            "tier_2_qty": 2,
+            "tier_2_discount": 10,
+            "tier_3_title": "3-Pack",
+            "tier_3_qty": 3,
+            "tier_3_discount": 15,
+            "tier_4_title": "4-Pack",
+            "tier_4_qty": 4,
+            "tier_4_discount": 20
           }
         },
         "subscription_xCQRGG": {
