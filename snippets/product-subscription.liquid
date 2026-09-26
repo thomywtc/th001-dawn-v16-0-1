@@ -24,7 +24,7 @@
 
     # Fall back to valid handles: blocks saved before the settings existed return nil
     assign inactive_scheme = block.settings.color_scheme | default: section.settings.color_scheme
-    assign active_scheme = block.settings.color_scheme_active
+    assign active_scheme = block.settings.color_scheme_active | default: settings.color_schemes[1].id | default: section.settings.color_scheme
 
     assign one_time_label = block.settings.one_time_purchase_label | default: 'One-time purchase'
     assign subscribe_label = block.settings.subscribe_and_save_label | default: 'Subscribe & save'
@@ -32,11 +32,20 @@
 
     assign first_group = product.selling_plan_groups[0]
     assign first_plan = first_group.selling_plans[0]
-    assign first_allocation = current_variant.selling_plan_allocations | where: 'selling_plan', first_plan | first
+
+    # `where:` cannot be used here: it compares the selling plan objects instead of their
+    # ids, so it silently returns nothing. The allocation is matched by id instead.
+    assign first_allocation = blank
+    for allocation in current_variant.selling_plan_allocations
+      if allocation.selling_plan.id == first_plan.id
+        assign first_allocation = allocation
+        break
+      endif
+    endfor
 
     assign first_discount = 0
     if first_allocation and current_variant.price > first_allocation.price
-      assign first_discount = current_variant.price | minus: first_allocation.price | times: 100.0 | divided_by: current_variant.price| round
+      assign first_discount = current_variant.price | minus: first_allocation.price | times: 100.0 | divided_by: current_variant.price | round
     endif
   -%}
 
@@ -191,7 +200,13 @@
             {%- for group in product.selling_plan_groups -%}
               {%- for plan in group.selling_plans -%}
                 {%- liquid
-                  assign plan_allocation = current_variant.selling_plan_allocations | where: 'selling_plan', plan | first
+                  assign plan_allocation = blank
+                  for allocation in current_variant.selling_plan_allocations
+                    if allocation.selling_plan.id == plan.id
+                      assign plan_allocation = allocation
+                      break
+                    endif
+                  endfor
                 -%}
                 <option
                   value="{{ plan.id }}"
@@ -534,8 +549,15 @@
               const variant = this.getVariant();
               if (!variant) return;
 
-              const isSubscription = this.subRadio.checked && !this.subRadio.disabled;
-              const allocation = isSubscription ? this.getSelectedAllocation() : null;
+              /**
+               * The plan price and the discount badge describe the selling plan itself, not
+               * the selected card, so they are read from the selected plan whether or not the
+               * subscription is the active option. Reading them only when the subscription is
+               * active is what used to leave the subscription price equal to the one-time
+               * price until the shopper touched the block for the first time.
+               */
+              const planAllocation = this.getSelectedAllocation();
+              const isSubscription = this.subRadio.checked && !this.subRadio.disabled && !!planAllocation;
 
               this.oneTimeOption.classList.toggle('is-active', !isSubscription);
               this.subOption.classList.toggle('is-active', isSubscription);
@@ -545,17 +567,18 @@
 
               this.oneTimePrice.textContent = variant.formatted_price;
 
-              if (allocation) {
-                this.subPrice.textContent = allocation.formatted_price;
-                this.hiddenInput.value = this.planSelect.value;
-
-                this.updateBadge(allocation);
-                this.updatePerDeliveryPrice(allocation);
-                this.applyPrice(allocation.formatted_price, variant.formatted_price);
+              if (planAllocation) {
+                this.subPrice.textContent = planAllocation.formatted_price;
+                this.updateBadge(planAllocation);
               } else {
                 this.subPrice.textContent = variant.formatted_price;
                 this.badge.hidden = true;
-                this.perDeliveryPrice.hidden = true;
+              }
+
+              if (isSubscription) {
+                this.hiddenInput.value = this.planSelect.value;
+                this.applyPrice(planAllocation.formatted_price, variant.formatted_price);
+              } else {
                 this.hiddenInput.value = '';
                 this.restorePrice();
               }
