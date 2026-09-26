@@ -46,9 +46,9 @@
             "tier_3_title": "3-Pack",
             "tier_3_qty": 3,
             "tier_3_discount": 15,
-            "tier_4_title": "4-Pack",
-            "tier_4_qty": 4,
-            "tier_4_discount": 20
+            "tier_4_title": "",
+            "tier_4_qty": 0,
+            "tier_4_discount": 0
           }
         },
         "subscription_xCQRGG": {
