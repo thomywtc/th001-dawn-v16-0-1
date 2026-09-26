@@ -167,37 +167,48 @@
     const cards = blockContainer.querySelectorAll('.quantity-break-card');
 
     cards.forEach(card => {
-      card.addEventListener('click', function () {
-        // Uncheck all and remove active class
-        cards.forEach(c => {
-          c.classList.remove('is-active');
-          const radio = c.querySelector('.quantity-break-radio');
-          if (radio) radio.checked = false;
-        });
-
-        // Activate clicked card
+        card.addEventListener('click', function () {
+        // 1. Alternar clases activas
+        cards.forEach(c => c.classList.remove('is-active'));
         this.classList.add('is-active');
-        const currentRadio = this.querySelector('.quantity-break-radio');
-        if (currentRadio) currentRadio.checked = true;
 
+        // 2. Obtener los valores formateados desde el HTML de la tarjeta seleccionada
         const selectedQty = this.dataset.qty;
-        const selectedPriceText = this.querySelector('.quantity-break-final-price').innerText;
+        
+        // Precio final calculado (ej: $180.00)
+        const finalPriceText = this.querySelector('.quantity-break-final-price')?.innerText;
+        
+        // Precio tachado comparativo (ej: $200.00)
+        const comparePriceText = this.querySelector('.quantity-break-compare-price')?.innerText;
 
-        // 1. Actualizar input de cantidad del formulario principal del producto
+        // 3. Actualizar la cantidad en el formulario de Shopify
         const quantityInputs = document.querySelectorAll('input[name="quantity"]');
         quantityInputs.forEach(input => {
-          input.value = selectedQty;
-          input.dispatchEvent(new Event('change', { bubbles: true }));
+            input.value = selectedQty;
+            input.dispatchEvent(new Event('change', { bubbles: true }));
         });
 
-        // 2. Actualizar el precio principal mostrado en el producto (Dawn theme / Standard selectors)
-        const priceContainers = document.querySelectorAll('.price .price-item--sale, .price .price-item--regular, .product__price .price');
-        priceContainers.forEach(priceContainer => {
-          if (priceContainer) {
-            priceContainer.innerText = selectedPriceText;
-          }
+        // 4. Actualizar el PRECIO FINAL principal
+        const salePriceElements = document.querySelectorAll('.price .price__sale .price-item--sale, .price .price__regular .price-item--regular');
+        salePriceElements.forEach(el => {
+            if (finalPriceText) el.innerText = finalPriceText;
         });
-      });
+
+        // 5. Actualizar el PRECIO TACHADO (Compare at Price) principal
+        const comparePriceElements = document.querySelectorAll('.price .price__sale s.price-item--regular, .price .price__regular s.price-item--regular');
+        comparePriceElements.forEach(el => {
+            if (comparePriceText) {
+            el.innerText = comparePriceText;
+            el.parentElement.style.display = 'inline'; // Asegurar que sea visible
+            } else {
+            // Si la opción seleccionada no tiene descuento (ej. Single $100), se oculta o restaura
+            const originalCompare = card.dataset.originalCompare; 
+            if (originalCompare) {
+                el.innerText = originalCompare;
+            }
+            }
+        });
+        });
     });
   });
 </script>
