@@ -160,74 +160,93 @@
 </div>
 
 <script>
-  document.addEventListener('DOMContentLoaded', function () {
-    const blockContainer = document.getElementById('QuantityBreaksList-{{ block.id }}');
-    if (!blockContainer) return;
+document.addEventListener('DOMContentLoaded', function () {
+  const blockContainer = document.querySelector('.quantity-breaks-list');
+  if (!blockContainer) return;
 
-    const cards = blockContainer.querySelectorAll('.quantity-break-card');
+  const cards = blockContainer.querySelectorAll('.quantity-break-card');
+  const priceWrapper = document.querySelector('.price');
 
-    cards.forEach(card => {
-        card.addEventListener('click', function () {
-            // 1. Activar tarjeta
-            cards.forEach(c => c.classList.remove('is-active'));
-            this.classList.add('is-active');
+  // 1. GUARDAR PRECIOS INICIALES DEL TEMA AL CARGAR LA PÁGINA
+  const initialRegularPrice = document.querySelector('.price .price__regular .price-item--regular')?.innerText;
+  const initialSalePrice = document.querySelector('.price .price__sale .price-item--sale')?.innerText;
+  const initialComparePrice = document.querySelector('.price s.price-item--regular')?.innerText;
+  const initialIsOnSale = priceWrapper ? priceWrapper.classList.contains('price--on-sale') : false;
 
-            const selectedQty = parseInt(this.dataset.qty, 10);
-            const discount = parseFloat(this.dataset.discount || 0);
+  cards.forEach(card => {
+    card.addEventListener('click', function () {
+      // 2. Activar tarjeta seleccionada
+      cards.forEach(c => c.classList.remove('is-active'));
+      this.classList.add('is-active');
 
-            const finalPriceText = this.querySelector('.quantity-break-final-price')?.innerText;
-            const comparePriceText = this.querySelector('.quantity-break-compare-price')?.innerText;
+      const selectedQty = parseInt(this.dataset.qty, 10);
+      const discount = parseFloat(this.dataset.discount || 0);
 
-            // 2. Actualizar input de cantidad de Shopify
-            document.querySelectorAll('input[name="quantity"]').forEach(input => {
-                input.value = selectedQty;
-                input.dispatchEvent(new Event('change', { bubbles: true }));
-            });
+      const finalPriceText = this.querySelector('.quantity-break-final-price')?.innerText;
+      const comparePriceText = this.querySelector('.quantity-break-compare-price')?.innerText;
 
-            // 3. Obtener contenedores de precio principales
-            const priceWrapper = document.querySelector('.price');
-            const regularPriceEl = document.querySelector('.price .price__regular .price-item--regular');
-            const salePriceEl = document.querySelector('.price .price__sale .price-item--sale');
-            let comparePriceEl = document.querySelector('.price s.price-item--regular');
+      // 3. Actualizar input de cantidad en el formulario de Shopify
+      document.querySelectorAll('input[name="quantity"]').forEach(input => {
+        input.value = selectedQty;
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+      });
 
-            if (discount > 0 && comparePriceText) {
-                // --- OPCIÓN CON DESCUENTO (2-Pack, 3-Pack, etc.) ---
+      // 4. Elementos del DOM del bloque de precio principal
+      const regularPriceEl = document.querySelector('.price .price__regular .price-item--regular');
+      const salePriceEl = document.querySelector('.price .price__sale .price-item--sale');
+      let comparePriceEl = document.querySelector('.price s.price-item--regular');
 
-                // Activar clase de oferta en el contenedor principal
-                if (priceWrapper) priceWrapper.classList.add('price--on-sale');
+      // 5. LÓGICA DE RESTAURACIÓN Y ACTUALIZACIÓN
 
-                // Actualizar precio de oferta
-                if (salePriceEl) salePriceEl.innerText = finalPriceText;
+      if (selectedQty === 1 && discount === 0) {
+        // --- OPCIÓN SINGLE (Restaurar estado inicial del producto) ---
+        if (priceWrapper) {
+          if (initialIsOnSale) {
+            priceWrapper.classList.add('price--on-sale');
+          } else {
+            priceWrapper.classList.remove('price--on-sale');
+          }
+        }
 
-                // Si no existe la etiqueta <s> en el HTML porque el producto no tenía compare_at_price original, la creamos
-                if (!comparePriceEl && priceWrapper) {
-                const saleContainer = document.querySelector('.price .price__sale');
-                if (saleContainer) {
-                    const sTag = document.createElement('s');
-                    sTag.className = 'price-item price-item--regular';
-                    saleContainer.insertBefore(sTag, saleContainer.firstChild);
-                    comparePriceEl = sTag;
-                }
-                }
+        if (regularPriceEl && initialRegularPrice) regularPriceEl.innerText = initialRegularPrice;
+        if (salePriceEl && initialSalePrice) salePriceEl.innerText = initialSalePrice;
 
-                if (comparePriceEl) {
-                comparePriceEl.innerText = comparePriceText;
-                comparePriceEl.style.display = 'inline';
-                }
+        if (comparePriceEl) {
+          if (initialIsOnSale && initialComparePrice) {
+            comparePriceEl.innerText = initialComparePrice;
+            comparePriceEl.style.display = 'inline';
+          } else {
+            comparePriceEl.style.display = 'none';
+          }
+        }
 
-            } else {
-                // --- OPCIÓN SIN DESCUENTO (Single) ---
+      } else {
+        // --- OPCIONES MULTI-PACK (2-Pack, 3-Pack, etc.) ---
 
-                // Quitar estado de oferta
-                if (priceWrapper) priceWrapper.classList.remove('price--on-sale');
+        // Forzar siempre la clase de oferta
+        if (priceWrapper) priceWrapper.classList.add('price--on-sale');
 
-                // Restaurar precio regular
-                if (regularPriceEl) regularPriceEl.innerText = finalPriceText;
+        // Actualizar precio de venta final
+        if (salePriceEl) salePriceEl.innerText = finalPriceText;
 
-                // Ocultar precio tachado
-                if (comparePriceEl) comparePriceEl.style.display = 'none';
-            }
-            });
+        // Crear elemento <s> si el producto no tenía precio de comparación de origen
+        if (!comparePriceEl && priceWrapper) {
+          const saleContainer = document.querySelector('.price .price__sale');
+          if (saleContainer) {
+            const sTag = document.createElement('s');
+            sTag.className = 'price-item price-item--regular';
+            saleContainer.insertBefore(sTag, saleContainer.firstChild);
+            comparePriceEl = sTag;
+          }
+        }
+
+        // Asignar el precio tachado calculado para el paquete
+        if (comparePriceEl) {
+          comparePriceEl.innerText = comparePriceText;
+          comparePriceEl.style.display = 'inline';
+        }
+      }
     });
   });
+});
 </script>
