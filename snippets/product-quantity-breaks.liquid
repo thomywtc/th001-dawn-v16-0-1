@@ -168,47 +168,66 @@
 
     cards.forEach(card => {
         card.addEventListener('click', function () {
-        // 1. Alternar clases activas
-        cards.forEach(c => c.classList.remove('is-active'));
-        this.classList.add('is-active');
+            // 1. Activar tarjeta
+            cards.forEach(c => c.classList.remove('is-active'));
+            this.classList.add('is-active');
 
-        // 2. Obtener los valores formateados desde el HTML de la tarjeta seleccionada
-        const selectedQty = this.dataset.qty;
-        
-        // Precio final calculado (ej: $180.00)
-        const finalPriceText = this.querySelector('.quantity-break-final-price')?.innerText;
-        
-        // Precio tachado comparativo (ej: $200.00)
-        const comparePriceText = this.querySelector('.quantity-break-compare-price')?.innerText;
+            const selectedQty = parseInt(this.dataset.qty, 10);
+            const discount = parseFloat(this.dataset.discount || 0);
 
-        // 3. Actualizar la cantidad en el formulario de Shopify
-        const quantityInputs = document.querySelectorAll('input[name="quantity"]');
-        quantityInputs.forEach(input => {
-            input.value = selectedQty;
-            input.dispatchEvent(new Event('change', { bubbles: true }));
-        });
+            const finalPriceText = this.querySelector('.quantity-break-final-price')?.innerText;
+            const comparePriceText = this.querySelector('.quantity-break-compare-price')?.innerText;
 
-        // 4. Actualizar el PRECIO FINAL principal
-        const salePriceElements = document.querySelectorAll('.price .price__sale .price-item--sale, .price .price__regular .price-item--regular');
-        salePriceElements.forEach(el => {
-            if (finalPriceText) el.innerText = finalPriceText;
-        });
+            // 2. Actualizar input de cantidad de Shopify
+            document.querySelectorAll('input[name="quantity"]').forEach(input => {
+                input.value = selectedQty;
+                input.dispatchEvent(new Event('change', { bubbles: true }));
+            });
 
-        // 5. Actualizar el PRECIO TACHADO (Compare at Price) principal
-        const comparePriceElements = document.querySelectorAll('.price .price__sale s.price-item--regular, .price .price__regular s.price-item--regular');
-        comparePriceElements.forEach(el => {
-            if (comparePriceText) {
-            el.innerText = comparePriceText;
-            el.parentElement.style.display = 'inline'; // Asegurar que sea visible
+            // 3. Obtener contenedores de precio principales
+            const priceWrapper = document.querySelector('.price');
+            const regularPriceEl = document.querySelector('.price .price__regular .price-item--regular');
+            const salePriceEl = document.querySelector('.price .price__sale .price-item--sale');
+            let comparePriceEl = document.querySelector('.price s.price-item--regular');
+
+            if (discount > 0 && comparePriceText) {
+                // --- OPCIÓN CON DESCUENTO (2-Pack, 3-Pack, etc.) ---
+
+                // Activar clase de oferta en el contenedor principal
+                if (priceWrapper) priceWrapper.classList.add('price--on-sale');
+
+                // Actualizar precio de oferta
+                if (salePriceEl) salePriceEl.innerText = finalPriceText;
+
+                // Si no existe la etiqueta <s> en el HTML porque el producto no tenía compare_at_price original, la creamos
+                if (!comparePriceEl && priceWrapper) {
+                const saleContainer = document.querySelector('.price .price__sale');
+                if (saleContainer) {
+                    const sTag = document.createElement('s');
+                    sTag.className = 'price-item price-item--regular';
+                    saleContainer.insertBefore(sTag, saleContainer.firstChild);
+                    comparePriceEl = sTag;
+                }
+                }
+
+                if (comparePriceEl) {
+                comparePriceEl.innerText = comparePriceText;
+                comparePriceEl.style.display = 'inline';
+                }
+
             } else {
-            // Si la opción seleccionada no tiene descuento (ej. Single $100), se oculta o restaura
-            const originalCompare = card.dataset.originalCompare; 
-            if (originalCompare) {
-                el.innerText = originalCompare;
+                // --- OPCIÓN SIN DESCUENTO (Single) ---
+
+                // Quitar estado de oferta
+                if (priceWrapper) priceWrapper.classList.remove('price--on-sale');
+
+                // Restaurar precio regular
+                if (regularPriceEl) regularPriceEl.innerText = finalPriceText;
+
+                // Ocultar precio tachado
+                if (comparePriceEl) comparePriceEl.style.display = 'none';
             }
-            }
-        });
-        });
+            });
     });
   });
 </script>
