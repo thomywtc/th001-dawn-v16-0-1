@@ -1,252 +1,449 @@
 {% comment %}
-  Bloque Quantity Breaks basado en las configuraciones (settings) del schema
+  Quantity breaks.
+
+  Prices are computed from this block's own tier settings (tier_N_qty / tier_N_discount). It does
+  not read Shopify's quantity price breaks, so it is an informative display: whatever discount ends
+  up being charged is the store's automatic discounts.
+
+  Accepts:
+  - product: {Object} product object.
+  - block: {Object} passing the block information.
+  - section_id: {String} id of the section rendering the block.
+  - product_form_id: {String} id of the product form.
+
+  Usage:
+  {% render 'product-quantity-breaks', product: product, block: block, section_id: section.id, product_form_id: product_form_id %}
 {% endcomment %}
 
-{%- assign current_variant = product.selected_or_first_available_variant -%}
-{%- assign base_price = current_variant.price -%}
+{%- liquid
+  assign current_variant = product.selected_or_first_available_variant
+  assign base_price = current_variant.price
 
-<style>
-  .quantity-breaks-wrapper {
-    margin: 1.5rem 0;
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-  }
+  assign tiers_configured = 0
 
-  .quantity-breaks-title {
-    font-size: 1.6rem;
-    font-weight: 600;
-    margin-bottom: 0.5rem;
-  }
+  for i in (1..4)
+    assign cfg_title_key = 'tier_' | append: i | append: '_title'
+    assign cfg_qty_key = 'tier_' | append: i | append: '_qty'
 
-  .quantity-breaks-list {
-    display: flex;
-    flex-direction: column;
-    gap: 0.8rem;
-  }
+    if block.settings[cfg_title_key] != blank and block.settings[cfg_qty_key] > 0
+      assign tiers_configured = tiers_configured | plus: 1
+    endif
+  endfor
+-%}
 
-  .quantity-break-card {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 1.2rem 1.5rem;
-    border: 1px solid rgba(0, 0, 0, 0.15);
-    border-radius: 8px;
-    cursor: pointer;
-    transition: all 0.2s ease-in-out;
-    position: relative;
-    user-select: none;
-  }
+{%- if product != blank and tiers_configured > 0 -%}
+  <style>
+    .quantity-breaks-wrapper {
+      margin: 1.5rem 0;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
 
-  .quantity-break-card:hover {
-    border-color: rgba(0, 0, 0, 0.4);
-  }
+    .quantity-breaks-title {
+      font-size: 1.6rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
 
-  .quantity-break-card.is-active {
-    border-width: 2px;
-    border-color: var(--color-foreground, #000);
-  }
+    .quantity-breaks-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.8rem;
+    }
 
-  .quantity-break-left {
-    display: flex;
-    align-items: center;
-    gap: 1.2rem;
-  }
+    .quantity-break-card {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1.2rem 1.5rem;
+      border: 1px solid rgba(var(--color-foreground), 0.15);
+      border-radius: 8px;
+      cursor: pointer;
+      transition:
+        border-color 0.2s ease-in-out,
+        border-width 0.2s ease-in-out;
+      position: relative;
+      user-select: none;
+    }
 
-  .quantity-break-radio {
-    width: 18px;
-    height: 18px;
-    cursor: pointer;
-    margin: 0;
-  }
+    .quantity-break-card:hover {
+      border-color: rgba(var(--color-foreground), 0.4);
+    }
 
-  .quantity-break-info {
-    display: flex;
-    flex-direction: column;
-  }
+    /* No hardcoded border colour here: the active card carries the block's active
+       colour scheme, so its foreground token resolves the border. */
+    .quantity-break-card.is-active {
+      border-width: 2px;
+      border-color: rgba(var(--color-foreground), 0.9);
+    }
 
-  .quantity-break-label {
-    font-weight: 700;
-    font-size: 1.4rem;
-    display: flex;
-    align-items: center;
-    gap: 0.6rem;
-  }
+    /* Keyboard focus only, so clicking a card does not light up an outline. If :has() is
+       unsupported the rule is dropped and focus just falls back to the browser default. */
+    .quantity-break-card:has(.quantity-break-radio:focus-visible) {
+      outline: 2px solid rgba(var(--color-foreground), 0.6);
+      outline-offset: 2px;
+    }
 
-  .quantity-break-prices {
-    text-align: right;
-    display: flex;
-    flex-direction: column;
-  }
+    .quantity-break-left {
+      display: flex;
+      align-items: center;
+      gap: 1.2rem;
+    }
 
-  .quantity-break-final-price {
-    font-weight: 700;
-    font-size: 1.5rem;
-  }
+    .quantity-break-radio {
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+      margin: 0;
+      flex-shrink: 0;
+    }
 
-  .quantity-break-compare-price {
-    text-decoration: line-through;
-    opacity: 0.6;
-    font-size: 1.2rem;
-  }
-</style>
+    .quantity-break-info {
+      display: flex;
+      flex-direction: column;
+    }
 
-<div class="quantity-breaks-wrapper color-{{ block.settings.color_scheme }}" data-block-id="{{ block.id }}">
-  {%- if block.settings.heading != blank -%}
-    <div class="quantity-breaks-title">{{ block.settings.heading }}</div>
-  {%- endif -%}
+    .quantity-break-label {
+      font-weight: 700;
+      font-size: 1.4rem;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      flex-wrap: wrap;
+    }
 
-  <div class="quantity-breaks-list" id="QuantityBreaksList-{{ block.id }}">
-    
-    {%- for i in (1..4) -%}
-      {%- assign title_key = 'tier_' | append: i | append: '_title' -%}
-      {%- assign qty_key = 'tier_' | append: i | append: '_qty' -%}
-      {%- assign discount_key = 'tier_' | append: i | append: '_discount' -%}
+    .quantity-break-badge {
+      display: inline-block;
+      padding: 0.1rem 0.5rem;
+      border-radius: 999px;
+      background-color: rgba(var(--color-foreground), 0.1);
+      color: rgba(var(--color-foreground), 0.9);
+      font-size: 1.1rem;
+      font-weight: 600;
+      line-height: 1.6;
+      white-space: nowrap;
+    }
 
-      {%- assign tier_title = block.settings[title_key] -%}
-      {%- assign tier_qty = block.settings[qty_key] -%}
-      {%- assign tier_discount = block.settings[discount_key] -%}
+    .quantity-break-prices {
+      text-align: right;
+      display: flex;
+      flex-direction: column;
+    }
 
-      {%- if tier_title != blank and tier_qty > 0 -%}
-        {%- comment %} Cálculo de precios en Liquid {% endcomment %}
-        {%- assign total_units_price = base_price | times: tier_qty -%}
-        
-        {%- if tier_discount > 0 -%}
-          {%- assign discount_multiplier = 100 | minus: tier_discount -%}
-          {%- assign discounted_unit_price = base_price | times: discount_multiplier | divided_by: 100 -%}
-          {%- assign final_total_price = discounted_unit_price | times: tier_qty -%}
-        {%- else -%}
-          {%- assign final_total_price = total_units_price -%}
-        {%- endif -%}
+    .quantity-break-final-price {
+      font-weight: 700;
+      font-size: 1.5rem;
+    }
 
-        <div 
-          class="quantity-break-card{% if forloop.first %} is-active{% endif %}" 
-          data-qty="{{ tier_qty }}"
-          data-discount="{{ tier_discount }}"
-          data-tier-index="{{ i }}"
-        >
-          <div class="quantity-break-left">
-            <input 
-              type="radio" 
-              name="quantity_break_option_{{ block.id }}" 
-              class="quantity-break-radio"
-              {% if forloop.first %}checked{% endif %}
-            >
-            <div class="quantity-break-info">
-              <span class="quantity-break-label">
-                {{ tier_title }}
-                {%- if tier_discount > 0 -%}
-                  <span class="quantity-break-badge">SAVE {{ tier_discount }}%</span>
-                {%- endif -%}
+    .quantity-break-compare-price {
+      text-decoration: line-through;
+      opacity: 0.6;
+      font-size: 1.2rem;
+    }
+  </style>
+
+  <quantity-breaks
+    class="quantity-breaks-wrapper color-{{ block.settings.color_scheme }}"
+    data-block-id="{{ block.id }}"
+    data-section-id="{{ section_id }}"
+    data-product-form-id="{{ product_form_id }}"
+    data-color-base="color-{{ block.settings.color_scheme }}"
+    data-color-active="color-{{ block.settings.color_scheme_active }}"
+    {{ block.shopify_attributes }}
+  >
+    {%- if block.settings.heading != blank -%}
+      <div class="quantity-breaks-title">{{ block.settings.heading }}</div>
+    {%- endif -%}
+
+    <div class="quantity-breaks-list" role="radiogroup">
+      {%- for i in (1..4) -%}
+        {%- liquid
+          assign title_key = 'tier_' | append: i | append: '_title'
+          assign qty_key = 'tier_' | append: i | append: '_qty'
+          assign discount_key = 'tier_' | append: i | append: '_discount'
+
+          assign tier_title = block.settings[title_key]
+          assign tier_qty = block.settings[qty_key]
+          assign tier_discount = block.settings[discount_key]
+        -%}
+
+        {%- if tier_title != blank and tier_qty > 0 -%}
+          {%- liquid
+            assign compare_cents = base_price | times: tier_qty
+
+            if tier_discount > 0
+              assign discount_multiplier = 100 | minus: tier_discount
+              assign unit_cents = base_price | times: discount_multiplier | divided_by: 100 | round
+              assign total_cents = unit_cents | times: tier_qty
+            else
+              assign total_cents = compare_cents
+            endif
+          -%}
+
+          <label
+            class="quantity-break-card color-{{ block.settings.color_scheme }}{% if forloop.first %} is-active color-{{ block.settings.color_scheme_active }}{% endif %}"
+            data-qb-card
+            data-tier-index="{{ i }}"
+            data-qty="{{ tier_qty }}"
+            data-discount="{{ tier_discount }}"
+          >
+            <span class="quantity-break-left">
+              <input
+                type="radio"
+                name="quantity_break_option_{{ block.id }}"
+                class="quantity-break-radio"
+                data-qb-radio
+                value="{{ tier_qty }}"
+                {% if forloop.first %}checked{% endif %}
+              >
+              <span class="quantity-break-info">
+                <span class="quantity-break-label">
+                  {{ tier_title }}
+                  {%- if tier_discount > 0 -%}
+                    <span class="quantity-break-badge">SAVE {{ tier_discount }}%</span>
+                  {%- endif -%}
+                </span>
               </span>
-            </div>
-          </div>
-
-          <div class="quantity-break-prices">
-            <span class="quantity-break-final-price" data-price-value="{{ final_total_price }}">
-              {{ final_total_price | money }}
             </span>
-            {%- if tier_discount > 0 -%}
-              <span class="quantity-break-compare-price">
-                {{ total_units_price | money }}
-              </span>
-            {%- endif -%}
-          </div>
-        </div>
-      {%- endif -%}
-    {%- endfor -%}
 
-  </div>
-</div>
+            <span class="quantity-break-prices">
+              <span class="quantity-break-final-price" data-qb-total>{{ total_cents | money }}</span>
+              {%- if tier_discount > 0 -%}
+                <span class="quantity-break-compare-price" data-qb-compare>{{ compare_cents | money }}</span>
+              {%- endif -%}
+            </span>
+          </label>
+        {%- endif -%}
+      {%- endfor -%}
+    </div>
+  </quantity-breaks>
+{%- endif -%}
 
 <script>
-document.addEventListener('DOMContentLoaded', function () {
-  const blockContainer = document.querySelector('.quantity-breaks-list');
-  if (!blockContainer) return;
+  if (!customElements.get('quantity-breaks')) {
+    customElements.define(
+      'quantity-breaks',
+      class QuantityBreaks extends HTMLElement {
+        variantChangeUnsubscriber = undefined;
+        quantityInputTimer = undefined;
+        activeQty = 1;
+        activeDiscount = 0;
+        pristineHtml = undefined;
+        pristineIsOnSale = false;
 
-  const cards = blockContainer.querySelectorAll('.quantity-break-card');
-  const priceWrapper = document.querySelector('.price');
+        connectedCallback() {
+          // Re-binding a moved node would duplicate every listener.
+          if (this.dataset.qbBound === 'true') return;
+          this.dataset.qbBound = 'true';
 
-  // 1. GUARDAR PRECIOS INICIALES DEL TEMA AL CARGAR LA PÁGINA
-  const initialRegularPrice = document.querySelector('.price .price__regular .price-item--regular')?.innerText;
-  const initialSalePrice = document.querySelector('.price .price__sale .price-item--sale')?.innerText;
-  const initialComparePrice = document.querySelector('.price s.price-item--regular')?.innerText;
-  const initialIsOnSale = priceWrapper ? priceWrapper.classList.contains('price--on-sale') : false;
+          this.resolveTargets();
+          this.rememberPristinePrice();
 
-  cards.forEach(card => {
-    card.addEventListener('click', function () {
-      // 2. Activar tarjeta seleccionada
-      cards.forEach(c => c.classList.remove('is-active'));
-      this.classList.add('is-active');
+          this.onCardChange = (event) => {
+            if (!event.target.matches('[data-qb-radio]')) return;
+            this.selectCard(event.target.closest('[data-qb-card]'));
+          };
+          this.addEventListener('change', this.onCardChange);
 
-      const selectedQty = parseInt(this.dataset.qty, 10);
-      const discount = parseFloat(this.dataset.discount || 0);
+          this.onQuantityInput = () => {
+            clearTimeout(this.quantityInputTimer);
+            this.quantityInputTimer = setTimeout(() => this.selectByQuantity(), 250);
+          };
+          this.quantityInput?.addEventListener('input', this.onQuantityInput);
 
-      const finalPriceText = this.querySelector('.quantity-break-final-price')?.innerText;
-      const comparePriceText = this.querySelector('.quantity-break-compare-price')?.innerText;
+          this.applyActive();
 
-      // 3. Actualizar input de cantidad en el formulario de Shopify
-      document.querySelectorAll('input[name="quantity"]').forEach(input => {
-        input.value = selectedQty;
-        input.dispatchEvent(new Event('change', { bubbles: true }));
-      });
-
-      // 4. Elementos del DOM del bloque de precio principal
-      const regularPriceEl = document.querySelector('.price .price__regular .price-item--regular');
-      const salePriceEl = document.querySelector('.price .price__sale .price-item--sale');
-      let comparePriceEl = document.querySelector('.price s.price-item--regular');
-
-      // 5. LÓGICA DE RESTAURACIÓN Y ACTUALIZACIÓN
-
-      if (selectedQty === 1 && discount === 0) {
-        // --- OPCIÓN SINGLE (Restaurar estado inicial del producto) ---
-        if (priceWrapper) {
-          if (initialIsOnSale) {
-            priceWrapper.classList.add('price--on-sale');
+          // `subscribe` only exists once the deferred theme scripts have run.
+          if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => this.init(), { once: true });
           } else {
-            priceWrapper.classList.remove('price--on-sale');
+            this.init();
           }
         }
 
-        if (regularPriceEl && initialRegularPrice) regularPriceEl.innerText = initialRegularPrice;
-        if (salePriceEl && initialSalePrice) salePriceEl.innerText = initialSalePrice;
+        disconnectedCallback() {
+          this.variantChangeUnsubscriber?.();
+          clearTimeout(this.quantityInputTimer);
+        }
 
-        if (comparePriceEl) {
-          if (initialIsOnSale && initialComparePrice) {
-            comparePriceEl.innerText = initialComparePrice;
-            comparePriceEl.style.display = 'inline';
-          } else {
-            comparePriceEl.style.display = 'none';
+        get cards() {
+          return this.querySelectorAll('[data-qb-card]');
+        }
+
+        init() {
+          this.variantChangeUnsubscriber = subscribe(PUB_SUB_EVENTS.variantChange, (event) => {
+            const { sectionId, html } = event.data ?? {};
+            if (sectionId !== this.dataset.sectionId || !html) return;
+
+            // Dawn already re-rendered the price block (product-info.js) before publishing this
+            // event, so the live DOM is the pristine markup for the incoming variant.
+            this.resolveTargets();
+            this.rememberPristinePrice();
+
+            // The payload is the section already re-rendered by Liquid for that variant, so the
+            // block's own markup is the source of truth for the new prices. Copying those strings
+            // keeps Liquid as the only place that does money formatting or discount arithmetic.
+            this.adoptPricesFrom(html);
+            this.applyActive();
+          });
+        }
+
+        resolveTargets() {
+          this.priceContainer = document.getElementById(`price-${this.dataset.sectionId}`);
+          this.quantityInput = document.getElementById(`Quantity-${this.dataset.sectionId}`);
+        }
+
+        rememberPristinePrice() {
+          const priceEl = this.priceContainer?.querySelector('.price');
+          if (!priceEl) return;
+          this.pristineHtml = priceEl.innerHTML;
+          this.pristineIsOnSale = priceEl.classList.contains('price--on-sale');
+        }
+
+        /**
+         * Copies the rendered tier prices out of a freshly rendered section fragment, matching
+         * cards by the tier index so they survive any change in how many tiers are configured.
+         */
+        adoptPricesFrom(html) {
+          const fragment = html.querySelector(`[data-block-id="${this.dataset.blockId}"]`);
+          if (!fragment) return;
+
+          this.cards.forEach((card) => {
+            const source = fragment.querySelector(
+              `[data-qb-card][data-tier-index="${card.dataset.tierIndex}"]`,
+            );
+            if (!source) return;
+
+            this.copyText(source, card, '[data-qb-total]', '[data-qb-total]');
+            this.copyText(source, card, '[data-qb-compare]', '[data-qb-compare]');
+          });
+        }
+
+        copyText(source, target, sourceSelector, targetSelector) {
+          const from = source.querySelector(sourceSelector);
+          const to = target.querySelector(targetSelector);
+          if (!from || !to) return;
+          to.textContent = from.textContent.trim();
+        }
+
+        selectCard(card) {
+          if (!card) return;
+
+          this.cards.forEach((other) => {
+            const isActive = other === card;
+            other.classList.toggle('is-active', isActive);
+            this.applyActiveColor(other, isActive);
+          });
+
+          this.activeQty = parseInt(card.dataset.qty, 10) || 1;
+          this.activeDiscount = parseInt(card.dataset.discount, 10) || 0;
+          this.writeQuantity();
+          this.paintPrice();
+        }
+
+        /**
+         * Keeps the block in sync when the quantity is typed directly. A quantity that matches no
+         * tier keeps no card selected and falls back to the undiscounted price, which is the
+         * honest thing to show rather than leaving a pack's price on screen.
+         */
+        selectByQuantity() {
+          const value = parseInt(this.quantityInput?.value, 10);
+          if (!Number.isFinite(value)) return;
+
+          const match = Array.from(this.cards).find(
+            (card) => parseInt(card.dataset.qty, 10) === value,
+          );
+
+          this.cards.forEach((card) => {
+            const isActive = card === match;
+            card.classList.toggle('is-active', isActive);
+            this.applyActiveColor(card, isActive);
+          });
+
+          this.activeQty = value;
+          this.activeDiscount = match ? parseInt(match.dataset.discount, 10) || 0 : 0;
+          this.paintPrice();
+        }
+
+        applyActiveColor(card, isActive) {
+          const base = this.dataset.colorBase;
+          const active = this.dataset.colorActive;
+          // The active card re-declares the colour scheme on the child element, so Dawn's
+          // custom properties override the wrapper by inheritance instead of by rule order.
+          if (!base || !active || base === active) return;
+
+          card.classList.remove(base, active);
+          card.classList.add(isActive ? active : base);
+        }
+
+        applyActive() {
+          const checked = this.querySelector('[data-qb-radio]:checked');
+          if (checked) {
+            this.selectCard(checked.closest('[data-qb-card]'));
+            return;
           }
+          this.selectByQuantity();
         }
 
-      } else {
-        // --- OPCIONES MULTI-PACK (2-Pack, 3-Pack, etc.) ---
+        writeQuantity() {
+          const input = this.quantityInput;
+          if (!input) return;
 
-        // Forzar siempre la clase de oferta
-        if (priceWrapper) priceWrapper.classList.add('price--on-sale');
+          const min = parseInt(input.dataset.min || input.min, 10);
+          const max = parseInt(input.dataset.max || input.max, 10);
+          const step = parseInt(input.step, 10) || 1;
 
-        // Actualizar precio de venta final
-        if (salePriceEl) salePriceEl.innerText = finalPriceText;
-
-        // Crear elemento <s> si el producto no tenía precio de comparación de origen
-        if (!comparePriceEl && priceWrapper) {
-          const saleContainer = document.querySelector('.price .price__sale');
-          if (saleContainer) {
-            const sTag = document.createElement('s');
-            sTag.className = 'price-item price-item--regular';
-            saleContainer.insertBefore(sTag, saleContainer.firstChild);
-            comparePriceEl = sTag;
+          let next = this.activeQty;
+          if (Number.isFinite(min)) next = Math.max(next, min);
+          if (Number.isFinite(max)) next = Math.min(next, max);
+          if (step > 1 && Number.isFinite(min)) {
+            next = min + Math.round((next - min) / step) * step;
           }
+          if (next === input.value) return;
+
+          input.value = next;
+          // Dawn listens for both; `QuantityInput` and `validateQtyRules` need the change event.
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          input.dispatchEvent(new Event('change', { bubbles: true }));
         }
 
-        // Asignar el precio tachado calculado para el paquete
-        if (comparePriceEl) {
-          comparePriceEl.innerText = comparePriceText;
-          comparePriceEl.style.display = 'inline';
+        paintPrice() {
+          const priceEl = this.priceContainer?.querySelector('.price');
+          if (!priceEl) return;
+
+          if (this.activeDiscount === 0) {
+            // Base tier: hand the block back exactly what Dawn rendered for this variant.
+            if (this.pristineHtml !== undefined) priceEl.innerHTML = this.pristineHtml;
+            priceEl.classList.toggle('price--on-sale', this.pristineIsOnSale);
+            return;
+          }
+
+          // price.liquid uses volume-pricing--sale-badge instead of price--on-sale when the
+          // product has native quantity breaks, so leave that markup to Dawn's own volume pricing.
+          if (priceEl.classList.contains('volume-pricing--sale-badge')) return;
+          if (priceEl.classList.contains('price--sold-out')) return;
+
+          const card = this.querySelector('[data-qb-card].is-active');
+          if (!card) return;
+
+          // price.liquid always renders an <s class="price-item price-item--regular"> inside
+          // .price__sale, so only its text changes here. Targeting it through .price__sale avoids
+          // the identical element price.liquid also renders in .price__regular.
+          const compareEl = priceEl.querySelector('.price__sale s.price-item--regular');
+          const saleEl = priceEl.querySelector('.price__sale .price-item--sale');
+
+          const total = card.querySelector('[data-qb-total]')?.textContent.trim();
+          const compare = card.querySelector('[data-qb-compare]')?.textContent.trim();
+
+          if (saleEl && total) saleEl.textContent = total;
+          if (compareEl && compare) compareEl.textContent = compare;
+
+          // component-price.css only reveals .price__sale and strikes the compare price when
+          // price--on-sale is present, so this single class drives the whole look.
+          priceEl.classList.add('price--on-sale');
         }
-      }
-    });
-  });
-});
+      },
+    );
+  }
 </script>
