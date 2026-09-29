@@ -260,7 +260,7 @@
                 {%- endif -%}
               </span>
               <span class="quantity-break-prices-withdisc">
-                {{ base_price | money }}
+                {{ total_cents | divided_by: tier_qty }}
               </span>
             </div>
             <div class="qty-right-wrapper">
