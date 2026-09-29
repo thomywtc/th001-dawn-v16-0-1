@@ -491,6 +491,19 @@
           this.activeDiscount = parseInt(card.dataset.discount, 10) || 0;
           this.writeQuantity();
           this.paintPrice();
+
+          const totalText = card.querySelector('[data-qb-total]')?.textContent.trim();
+          const priceInCents = parseInt(card.dataset.priceCents, 10) || null;
+
+          document.dispatchEvent(
+            new CustomEvent('quantity-break:change', {
+              detail: {
+                quantity: this.activeQty,
+                packPriceCents: priceInCents,
+                formattedPrice: totalText
+              }
+            })
+          );
         }
 
         /**
