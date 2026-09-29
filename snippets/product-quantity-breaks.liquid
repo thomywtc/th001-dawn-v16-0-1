@@ -246,6 +246,8 @@
             data-qty="{{ tier_qty }}"
             data-discount="{{ tier_discount }}"
             data-discount-type="{{ tier_discount_type }}"
+            data-pack-total="{{ total_cents }}"
+            data-pack-compare="{{ compare_cents }}"
           >
             <div class="tier_badge badge_{{ i }}">{{ tier_badge }}</div>
             <div class="qty-left-wrapper">
@@ -275,7 +277,12 @@
                 {%- endif -%}
               </span>
               <span class="quantity-break-prices-withdisc">
-                {{ total_cents | divided_by: tier_qty | money }} / gallon
+                {%- comment -%}
+                  `divided_by` on two integers truncates, so a pack whose total does not divide
+                  evenly by its quantity showed a unit price under the real one. Multiplying by a
+                  float keeps the remainder for the money filter to round.
+                {%- endcomment -%}
+                {{ total_cents | times: 1.0 | divided_by: tier_qty | money }} / gallon
               </span>
             </div>
             <div class="qty-right-wrapper">
@@ -466,6 +473,10 @@
 
             this.copyText(source, card, '[data-qb-total]', '[data-qb-total]');
             this.copyText(source, card, '[data-qb-compare]', '[data-qb-compare]');
+            // The prices other blocks combine with the quantity are sent in cents, so the stale
+            // values of the previous variant have to be replaced along with the visible strings.
+            this.copyAttribute(source, card, 'data-pack-total');
+            this.copyAttribute(source, card, 'data-pack-compare');
           });
         }
 
@@ -474,6 +485,12 @@
           const to = target.querySelector(targetSelector);
           if (!from || !to) return;
           to.textContent = from.textContent.trim();
+        }
+
+        copyAttribute(source, target, name) {
+          const value = source.getAttribute(name);
+          if (value == null) return;
+          target.setAttribute(name, value);
         }
 
         selectCard(card) {
@@ -492,20 +509,7 @@
           this.writeQuantity();
           this.paintPrice();
 
-          const totalText = card.querySelector('[data-qb-total]')?.textContent.trim();
-          const priceInCents = parseInt(card.dataset.priceCents, 10) || null;
-
-          document.dispatchEvent(
-            new CustomEvent('quantity-break:changed', {
-              bubbles: true,
-              detail: {
-                quantity: this.activeQty,
-                formattedPrice: totalText,
-                discount: this.activeDiscount,
-                card: card
-              }
-            })
-          );
+          this.emitChange(card);
         }
 
         /**
@@ -532,6 +536,38 @@
           this.activeQty = value;
           this.activeDiscount = match ? parseInt(match.dataset.discount, 10) || 0 : 0;
           this.paintPrice();
+          this.emitChange(match);
+        }
+
+        /**
+         * Tells the other price aware blocks what the current selection costs, both as the string
+         * Liquid rendered and as cents. The cents are what a pack priced with a fixed discount
+         * needs: the same total cannot be rebuilt from a percentage, and `data-pack-total` is the
+         * only place the amount actually charged by that tier is available.
+         *
+         * `card` is the tier matching the current quantity, or null when the quantity matches no
+         * tier, in which case the listener falls back to the plain unit price.
+         */
+        emitChange(card) {
+          const isActive = Boolean(card);
+          const total = isActive ? parseInt(card.dataset.packTotal, 10) : NaN;
+          const compare = isActive ? parseInt(card.dataset.packCompare, 10) : NaN;
+
+          document.dispatchEvent(
+            new CustomEvent('quantity-break:change', {
+              detail: {
+                quantity: this.activeQty,
+                packPriceCents: Number.isFinite(total) ? total : null,
+                packCompareCents: Number.isFinite(compare) ? compare : null,
+                formattedPrice: isActive
+                  ? card.querySelector('[data-qb-total]')?.textContent.trim() || null
+                  : null,
+                formattedCompare: isActive
+                  ? card.querySelector('[data-qb-compare]')?.textContent.trim() || null
+                  : null
+              }
+            })
+          );
         }
 
         applyActiveColor(card, isActive) {
