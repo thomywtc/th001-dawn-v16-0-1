@@ -496,11 +496,13 @@
           const priceInCents = parseInt(card.dataset.priceCents, 10) || null;
 
           document.dispatchEvent(
-            new CustomEvent('quantity-break:change', {
+            new CustomEvent('quantity-break:changed', {
+              bubbles: true,
               detail: {
                 quantity: this.activeQty,
-                packPriceCents: priceInCents,
-                formattedPrice: totalText
+                formattedPrice: totalText,
+                discount: this.activeDiscount,
+                card: card
               }
             })
           );
