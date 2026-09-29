@@ -51,10 +51,6 @@
             "tier_4_discount": 0
           }
         },
-        "price": {
-          "type": "price",
-          "settings": {}
-        },
         "subscription_xCQRGG": {
           "type": "subscription",
           "settings": {
@@ -64,6 +60,10 @@
             "subscribe_and_save_label": "Subscribe & save",
             "frequency_label": ""
           }
+        },
+        "price": {
+          "type": "price",
+          "settings": {}
         },
         "buy_buttons": {
           "type": "buy_buttons",
@@ -88,8 +88,8 @@
         "variant_picker",
         "quantity_selector",
         "quantity_breaks_w3k6LW",
-        "price",
         "subscription_xCQRGG",
+        "price",
         "buy_buttons",
         "description",
         "custom_liquid_yAfA6A"
