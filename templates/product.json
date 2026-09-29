@@ -35,8 +35,8 @@
           "type": "quantity-breaks",
           "settings": {
             "heading": "Select Quantity",
-            "color_scheme": "background-1",
-            "color_scheme_active": "background-2",
+            "color_scheme": "inverse",
+            "color_scheme_active": "accent-2",
             "tier_1_title": "Single",
             "tier_1_badge": "TRY IT FIRST",
             "tier_1_qty": 1,
