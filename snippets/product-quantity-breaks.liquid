@@ -241,7 +241,7 @@
               <span class="quantity-break-prices">
                 <span class="quantity-break-final-price" data-qb-total>{{ total_cents | money }}</span>
                 {%- if tier_discount > 0 -%}
-                  <span class="quantity-break-compare-price" data-qb-compare>{{ compare_cents | money }}</span>
+                  <span class="quantity-break-compare-price hidden" data-qb-compare>{{ compare_cents | money }}</span>
                 {%- endif -%}
               </span>
             </div>
