@@ -387,20 +387,31 @@
 
           // ESCUCHA EVENTOS DISPARADOS POR EL BLOQUE DE QUANTITY BREAKS
           document.addEventListener('quantity-break:change', (event) => {
-            const { formattedPrice, packPriceCents, quantity } = event.detail;
+            const { formattedPrice } = event.detail;
             if (!formattedPrice) return;
 
-            // 1. Convertir el precio formateado (ej. "$89.98") a centavos numéricos si no vienen en el evento
+            // 1. Extraer el valor numérico del precio (ej. de "$89.98" a 89.98)
             const rawNumeric = parseFloat(formattedPrice.replace(/[^0-9.]/g, ''));
-            const calculatedCents = !isNaN(rawNumeric) ? Math.round(rawNumeric * 100) : null;
+            if (isNaN(rawNumeric)) return;
 
-            // 2. Actualizar las propiedades internas del componente de suscripción
-            this.currentQty = quantity || this.currentQty || 1;
-            this.overridePriceCents = packPriceCents || calculatedCents;
-            this.currentFormattedPrice = formattedPrice;
+            // 2. Obtener la moneda ($)
+            const currencySymbol = formattedPrice.replace(/[0-9.,]/g, '').trim() || '$';
 
-            // 3. Ejecutar el recálculo interno y actualización visual de UI
-            this.update();
+            // 3. Obtener el porcentaje de descuento de la suscripción (ej. 10% -> 0.10)
+            // Revisa si tienes data-subscription-discount="10" en tu HTML de suscripción
+            const discountPercent = 10; // Cambiar si tu porcentaje es dinámico
+            const subscriptionNumeric = rawNumeric * (1 - discountPercent / 100);
+
+            // 4. Formatear los precios a dos decimales
+            const formattedOneTime = `${currencySymbol}${rawNumeric.toFixed(2)}`;
+            const formattedSubscription = `${currencySymbol}${subscriptionNumeric.toFixed(2)}`;
+
+            // 5. Actualizar la interfaz (los spans/precios en las tarjetas de compra)
+            const oneTimePriceEl = document.querySelector('[data-one-time-price]');
+            const subscriptionPriceEl = document.querySelector('[data-subscription-price]');
+
+            if (oneTimePriceEl) oneTimePriceEl.textContent = formattedOneTime;
+            if (subscriptionPriceEl) subscriptionPriceEl.textContent = formattedSubscription;
           });
 
           this.variantIdInputListener = (event) => {
