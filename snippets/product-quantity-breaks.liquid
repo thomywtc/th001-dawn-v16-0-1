@@ -377,14 +377,29 @@
           if (byId) return byId;
 
           const formId = this.dataset.productFormId;
+          const form = formId ? document.getElementById(formId) : null;
+
           if (formId) {
             const byForm = document.querySelector(`input[name="quantity"][form="${formId}"]`);
             if (byForm) return byForm;
           }
 
+          if (form) {
+            let hiddenInput = form.querySelector('input[name="quantity"]');
+            if (!hiddenInput) {
+              hiddenInput = document.createElement('input');
+              hiddenInput.type = 'hidden';
+              hiddenInput.name = 'quantity';
+              hiddenInput.value = this.activeQty || 1;
+              form.appendChild(hiddenInput);
+            }
+            return hiddenInput;
+          }
+
           return (
-            this.closest('product-info')?.querySelector('.quantity__input') ??
-            document.querySelector('.product-form__quantity .quantity__input')
+            document.querySelector(`[id^="Quantity-"]`) ??
+            this.closest('product-info')?.querySelector('input[name="quantity"]') ??
+            document.querySelector('.quantity__input')
           );
         }
 
@@ -543,6 +558,19 @@
           if (String(next) === input.value) return;
 
           input.value = next;
+
+          const formId = this.dataset.productFormId;
+          if (formId) {
+            const form = document.getElementById(formId);
+            if (form) {
+              const formQtyInput = form.querySelector('input[name="quantity"]');
+              if (formQtyInput && formQtyInput !== input) {
+                formQtyInput.value = next;
+                formQtyInput.dispatchEvent(new Event('change', { bubbles: true }));
+              }
+            }
+          }
+
           // Dawn listens for both; `QuantityInput` and `validateQtyRules` need the change event.
           input.dispatchEvent(new Event('input', { bubbles: true }));
           input.dispatchEvent(new Event('change', { bubbles: true }));
