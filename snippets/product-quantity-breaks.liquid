@@ -203,12 +203,14 @@
           assign title_key = 'tier_' | append: i | append: '_title'
           assign qty_key = 'tier_' | append: i | append: '_qty'
           assign discount_key = 'tier_' | append: i | append: '_discount'
+          assign discount_type_key = 'tier_' | append: i | append: '_discount_type'
           assign badge_key = 'tier_' | append: i | append: '_badge'
           assign image_key = 'tier_' | append: i | append: '_image'
 
           assign tier_title = block.settings[title_key]
           assign tier_qty = block.settings[qty_key]
           assign tier_discount = block.settings[discount_key]
+          assign tier_discount_type = block.settings[discount_type_key] | default: 'percent'
           assign tier_badge = block.settings[badge_key]
           assign tier_image = block.settings[image_key]
         -%}
@@ -217,9 +219,19 @@
           {%- liquid
             assign compare_cents = base_price | times: tier_qty
 
+
             if tier_discount > 0
-              assign discount_multiplier = 100 | minus: tier_discount
-              assign unit_cents = base_price | times: discount_multiplier | divided_by: 100 | round
+              if tier_discount_type == 'fixed'
+                assign discount_amount_cents = tier_discount | times: 100
+                assign unit_cents = base_price | minus: discount_amount_cents
+                if unit_cents < 0
+                  assign unit_cents = 0
+                endif
+              else
+                assign discount_multiplier = 100 | minus: tier_discount
+                assign unit_cents = base_price | times: discount_multiplier | divided_by: 100 | round
+              endif
+              
               assign total_cents = unit_cents | times: tier_qty
             else
               assign total_cents = compare_cents
