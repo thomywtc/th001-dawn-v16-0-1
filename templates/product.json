@@ -73,6 +73,10 @@
             "frequency_label": ""
           }
         },
+        "rockit_discounts_sales_discount_app_block_r6Jaky": {
+          "type": "shopify://apps/rockit-discounts-sales/blocks/discount-app-block/f347a9bf-00bf-4eeb-9f4d-159bb9b1cead",
+          "settings": {}
+        },
         "buy_buttons": {
           "type": "buy_buttons",
           "settings": {
@@ -98,6 +102,7 @@
         "quantity_breaks_w3k6LW",
         "price",
         "subscription_xCQRGG",
+        "rockit_discounts_sales_discount_app_block_r6Jaky",
         "buy_buttons",
         "description",
         "custom_liquid_yAfA6A"
