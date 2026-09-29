@@ -219,22 +219,23 @@
           {%- liquid
             assign compare_cents = base_price | times: tier_qty
 
-
             if tier_discount > 0
               if tier_discount_type == 'fixed'
                 assign discount_amount_cents = tier_discount | times: 100
-                assign unit_cents = base_price | minus: discount_amount_cents
-                if unit_cents < 0
-                  assign unit_cents = 0
+                assign total_cents = compare_cents | minus: discount_amount_cents
+                if total_cents < 0
+                  assign total_cents = 0
                 endif
+                assign unit_cents = total_cents | divided_by: tier_qty
               else
+
                 assign discount_multiplier = 100 | minus: tier_discount
                 assign unit_cents = base_price | times: discount_multiplier | divided_by: 100 | round
+                assign total_cents = unit_cents | times: tier_qty
               endif
-              
-              assign total_cents = unit_cents | times: tier_qty
             else
               assign total_cents = compare_cents
+              assign unit_cents = base_price
             endif
           -%}
 
