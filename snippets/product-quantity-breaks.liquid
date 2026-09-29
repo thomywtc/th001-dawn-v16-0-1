@@ -58,7 +58,6 @@
       flex-direction: column;
       gap: 1rem;
     }
-
     .quantity-breaks-title {
       font-size: 1.6rem;
       font-weight: 600;
@@ -187,7 +186,6 @@
           assign tier_qty = block.settings[qty_key]
           assign tier_discount = block.settings[discount_key]
           assign tier_badge = block.settings[badge_key]
-          
         -%}
 
         {%- if tier_title != blank and tier_qty > 0 -%}
@@ -315,7 +313,6 @@
         }
 
         resolveTargets() {
-          this.priceContainer = document.getElementById(`price-${this.dataset.sectionId}`);
           this.quantityInput = this.findQuantityInput();
           this.bindQuantityInput();
         }
@@ -356,11 +353,37 @@
           );
         }
 
+        /**
+         * Dawn renders the price as its own section block, so a merchant can drag it below this
+         * one. Resolving on every use instead of caching at connect time keeps the block working
+         * in either order; at connectedCallback the price block may simply not be parsed yet.
+         */
+        get priceEl() {
+          return document.getElementById(`price-${this.dataset.sectionId}`)?.querySelector('.price') ?? null;
+        }
+
+        /**
+         * Overwrites the snapshot, including clearing it when the price block is gone, so a stale
+         * snapshot from the previous variant can never be used as a restore target.
+         */
         rememberPristinePrice() {
-          const priceEl = this.priceContainer?.querySelector('.price');
-          if (!priceEl) return;
+          const priceEl = this.priceEl;
+          if (!priceEl) {
+            this.pristineHtml = undefined;
+            this.pristineIsOnSale = false;
+            return;
+          }
           this.pristineHtml = priceEl.innerHTML;
           this.pristineIsOnSale = priceEl.classList.contains('price--on-sale');
+        }
+
+        /**
+         * Taken on the first interaction rather than at connect time, because the price block may
+         * have rendered after this one. It has to happen before the first paint, and only once
+         * per variant, or the snapshot would capture this block's own markup.
+         */
+        ensurePristinePrice() {
+          if (this.pristineHtml === undefined) this.rememberPristinePrice();
         }
 
         /**
@@ -392,6 +415,8 @@
         selectCard(card) {
           if (!card) return;
 
+          this.ensurePristinePrice();
+
           this.cards.forEach((other) => {
             const isActive = other === card;
             other.classList.toggle('is-active', isActive);
@@ -412,6 +437,8 @@
         selectByQuantity() {
           const value = parseInt(this.quantityInput?.value, 10);
           if (!Number.isFinite(value)) return;
+
+          this.ensurePristinePrice();
 
           const match = Array.from(this.cards).find(
             (card) => parseInt(card.dataset.qty, 10) === value,
@@ -494,8 +521,15 @@
         }
 
         paintPrice() {
-          const priceEl = this.priceContainer?.querySelector('.price');
-          if (!priceEl) return;
+          const priceEl = this.priceEl;
+          if (!priceEl) {
+            console.warn(
+              `quantity-breaks: no se encontro el bloque de precio. Se busco el id "price-${
+                this.dataset.sectionId
+              }". Revisa el orden de los bloques en el editor del tema.`,
+            );
+            return;
+          }
 
           if (this.activeDiscount === 0) {
             // Base tier: hand the block back exactly what Dawn rendered for this variant.
