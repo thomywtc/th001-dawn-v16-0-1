@@ -159,6 +159,12 @@
       opacity: 0.6;
       font-size: 1.2rem;
     }
+    .qty-left-wrapper{
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      align-items: flex-start;
+    }
   </style>
 
   <quantity-breaks
@@ -211,7 +217,7 @@
             data-discount="{{ tier_discount }}"
           >
             <div class="tier_badge badge_{{ i }}">{{ tier_badge }}</div>
-            <div>
+            <div class="qty-left-wrapper">
               <span class="quantity-break-left">
                 <input
                   type="radio"
@@ -238,7 +244,7 @@
                 {%- endif -%}
               </span>
             </div>
-            <div>
+            <div class="qty-right-wrapper">
               {%- if tier_image != blank -%}
               <img src="{{ tier_image | image_url: height:80  }}"/>
               {%- endif -%}
