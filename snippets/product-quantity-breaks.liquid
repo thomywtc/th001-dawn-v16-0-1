@@ -260,7 +260,7 @@
                 {%- endif -%}
               </span>
               <span class="quantity-break-prices-withdisc">
-                {{ total_cents | divided_by: tier_qty }}
+                {{ total_cents | divided_by: tier_qty | money }} / gallon
               </span>
             </div>
             <div class="qty-right-wrapper">
