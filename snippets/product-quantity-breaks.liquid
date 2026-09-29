@@ -162,10 +162,13 @@
           assign title_key = 'tier_' | append: i | append: '_title'
           assign qty_key = 'tier_' | append: i | append: '_qty'
           assign discount_key = 'tier_' | append: i | append: '_discount'
+          assign badge_key = 'tier_' | append: i | append: '_badge'
 
           assign tier_title = block.settings[title_key]
           assign tier_qty = block.settings[qty_key]
           assign tier_discount = block.settings[discount_key]
+          assign tier_badge = block.settings[badge_key]
+          
         -%}
 
         {%- if tier_title != blank and tier_qty > 0 -%}
@@ -188,6 +191,7 @@
             data-qty="{{ tier_qty }}"
             data-discount="{{ tier_discount }}"
           >
+            <div>{{ tier_badge }}</div>
             <span class="quantity-break-left">
               <input
                 type="radio"
