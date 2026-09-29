@@ -350,285 +350,278 @@
       }
     </style>
 
- 
     <script>
-  if (!customElements.get('product-subscription')) {
-    customElements.define(
-      'product-subscription',
-      class ProductSubscription extends HTMLElement {
-        variantChangeUnsubscriber = undefined;
-        variantIdInputListener = undefined;
+      if (!customElements.get('product-subscription')) {
+        customElements.define(
+          'product-subscription',
+          class ProductSubscription extends HTMLElement {
+            variantChangeUnsubscriber = undefined;
+            variantIdInputListener = undefined;
 
-        connectedCallback() {
-          // PROPIEDADES PARA EL BLOQUE DE CANTIDAD/PACKS
-          this.currentQty = 1;
-          this.overrideOneTimeCents = null;
+            connectedCallback() {
+              this.addEventListener('change', (event) => {
+                if (event.target.matches('[data-subscription-radio], [data-selling-plan-select]')) {
+                  this.update();
+                }
+              });
 
-          this.addEventListener('change', (event) => {
-            if (event.target.matches('[data-subscription-radio], [data-selling-plan-select]')) {
+              this.json = this.parseJson('[data-subscription-json]');
+              if (!this.json) return;
+
+              this.priceContainer = this.getPriceContainer();
+              this.oneTimePrice = this.querySelector('[data-one-time-price]');
+              this.subPrice = this.querySelector('[data-subscription-price]');
+              this.badge = this.querySelector('[data-subscription-badge]');
+              this.perDeliveryPrice = this.querySelector('[data-per-delivery-price]');
+              this.planSelect = this.querySelector('[data-selling-plan-select]');
+              this.hiddenInput = this.querySelector('[data-selling-plan-input]');
+              this.oneTimeOption = this.querySelector('[data-option-type="one-time"]');
+              this.subOption = this.querySelector('[data-option-type="subscription"]');
+              this.subRadio = this.subOption.querySelector('[data-subscription-radio]');
+              this.variantId = this.dataset.currentVariant;
+
+              /**
+               * Dawn re-renders the price block on every variant change and only signals it
+               * through pub/sub, so the variant is also read from the form id input as a
+               * fallback: the block keeps working even if the event payload changes shape.
+               */
+              this.variantIdInputListener = (event) => {
+                if (event.target?.name !== 'id') return;
+
+                const nextVariantId = event.target.value;
+                if (!this.json.variants[nextVariantId] || nextVariantId === this.variantId) return;
+
+                this.variantId = nextVariantId;
+                // the price block is replaced right after this event is dispatched
+                setTimeout(() => this.refresh(), 0);
+              };
+              document.addEventListener('change', this.variantIdInputListener);
+
+              // `subscribe` only exists once the deferred theme scripts have run
+              if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', () => this.init(), { once: true });
+              } else {
+                this.init();
+              }
+            }
+
+            disconnectedCallback() {
+              this.variantChangeUnsubscriber?.();
+              document.removeEventListener('change', this.variantIdInputListener);
+            }
+
+            init() {
+              if (!this.isConnected) return;
+
+              this.variantChangeUnsubscriber = subscribe(PUB_SUB_EVENTS.variantChange, (event) => {
+                const nextVariantId = event?.data?.variant?.id;
+                if (!this.isConnected || !nextVariantId || !this.json.variants[nextVariantId]) return;
+
+                this.variantId = String(nextVariantId);
+                this.refresh();
+              });
+
+              this.refresh();
+            }
+
+            /** Re-reads everything that depends on the current variant */
+            refresh() {
+              if (!this.isConnected) return;
+
+              this.updatePlanAvailability();
+              this.rememberPrice();
               this.update();
             }
-          });
 
-          this.json = this.parseJson('[data-subscription-json]');
-          if (!this.json) return;
-
-          this.priceContainer = this.getPriceContainer();
-          this.oneTimePrice = this.querySelector('[data-one-time-price]');
-          this.subPrice = this.querySelector('[data-subscription-price]');
-          this.badge = this.querySelector('[data-subscription-badge]');
-          this.perDeliveryPrice = this.querySelector('[data-per-delivery-price]');
-          this.planSelect = this.querySelector('[data-selling-plan-select]');
-          this.hiddenInput = this.querySelector('[data-selling-plan-input]');
-          this.oneTimeOption = this.querySelector('[data-option-type="one-time"]');
-          this.subOption = this.querySelector('[data-option-type="subscription"]');
-          this.subRadio = this.subOption.querySelector('[data-subscription-radio]');
-          this.variantId = this.dataset.currentVariant;
-
-          // ESCUCHAR EVENTO DESDE EL BLOQUE DE PACKS / QUANTITY BREAKS
-          document.addEventListener('quantity-break:change', (e) => {
-            if (e.detail) {
-              this.currentQty = e.detail.quantity || 1;
-              this.overrideOneTimeCents = e.detail.packPriceCents || null;
-              this.update();
+            parseJson(selector) {
+              try {
+                return JSON.parse(this.querySelector(selector)?.textContent);
+              } catch {
+                return null;
+              }
             }
-          });
 
-          this.variantIdInputListener = (event) => {
-            if (event.target?.name !== 'id') return;
-
-            const nextVariantId = event.target.value;
-            if (!this.json.variants[nextVariantId] || nextVariantId === this.variantId) return;
-
-            this.variantId = nextVariantId;
-            setTimeout(() => this.refresh(), 0);
-          };
-          document.addEventListener('change', this.variantIdInputListener);
-
-          if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', () => this.init(), { once: true });
-          } else {
-            this.init();
-          }
-        }
-
-        disconnectedCallback() {
-          this.variantChangeUnsubscriber?.();
-          document.removeEventListener('change', this.variantIdInputListener);
-        }
-
-        init() {
-          if (!this.isConnected) return;
-
-          this.variantChangeUnsubscriber = subscribe(PUB_SUB_EVENTS.variantChange, (event) => {
-            const nextVariantId = event?.data?.variant?.id;
-            if (!this.isConnected || !nextVariantId || !this.json.variants[nextVariantId]) return;
-
-            this.variantId = String(nextVariantId);
-            this.refresh();
-          });
-
-          this.refresh();
-        }
-
-        refresh() {
-          if (!this.isConnected) return;
-
-          this.updatePlanAvailability();
-          this.rememberPrice();
-          this.update();
-        }
-
-        parseJson(selector) {
-          try {
-            return JSON.parse(this.querySelector(selector)?.textContent);
-          } catch {
-            return null;
-          }
-        }
-
-        getPriceContainer() {
-          return document.getElementById(this.dataset.priceTarget);
-        }
-
-        getVariant() {
-          const formVariantId = document
-            .getElementById(this.dataset.formId)
-            ?.querySelector('input[name="id"]')?.value;
-
-          return this.json.variants[this.variantId] || this.json.variants[formVariantId];
-        }
-
-        getSelectedAllocation() {
-          const allocation = this.getVariant()?.allocations?.[this.planSelect.value];
-          return allocation?.available === false ? null : allocation;
-        }
-
-        updatePlanAvailability() {
-          const allocations = this.getVariant()?.allocations || {};
-          const options = [...this.planSelect.querySelectorAll('option')];
-
-          options.forEach((option) => {
-            const allocation = allocations[option.value];
-            option.disabled = !allocation || allocation.available === false;
-          });
-
-          const hasPlans = options.some((option) => !option.disabled);
-
-          this.subOption.classList.toggle('is-disabled', !hasPlans);
-          this.subRadio.disabled = !hasPlans;
-
-          if (!this.getSelectedAllocation()) {
-            const availableOption = options.find((option) => !option.disabled);
-            if (availableOption) this.planSelect.value = availableOption.value;
-          }
-
-          if (!this.getSelectedAllocation()) {
-            this.oneTimeOption.querySelector('[data-subscription-radio]').checked = true;
-          }
-        }
-
-        rememberPrice() {
-          const priceContainer = this.getPriceContainer();
-          if (!priceContainer) return;
-
-          this.priceContainer = priceContainer;
-          this.pristinePriceHtml = priceContainer.innerHTML;
-          this.pristineClassName = priceContainer.querySelector('.price')?.className || 'price';
-        }
-
-        restorePrice() {
-          const priceContainer = this.getPriceContainer();
-          if (!priceContainer || this.pristinePriceHtml == null) return;
-
-          priceContainer.innerHTML = this.pristinePriceHtml;
-        }
-
-        applyPrice(formattedPrice, compareAtPrice) {
-          const priceContainer = this.getPriceContainer();
-          if (!priceContainer || this.pristinePriceHtml == null) return;
-
-          const className = (this.pristineClassName || 'price')
-            .split(/\s+/)
-            .filter(
-              (name) =>
-                name && name !== 'price--on-sale' && name !== 'price--subscription'
-            )
-            .concat(['price--on-sale', 'price--subscription'])
-            .join(' ');
-
-          priceContainer.innerHTML = `
-            <div class="${className}">
-              <div class="price__container">
-                <div class="price__sale">
-                  <span class="visually-hidden visually-hidden--inline" data-label="regular"></span>
-                  <span><s class="price-item price-item--regular"></s></span>
-                  <span class="visually-hidden visually-hidden--inline" data-label="sale"></span>
-                  <span class="price-item price-item--sale price-item--last"></span>
-                </div>
-              </div>
-            </div>`;
-
-          const price = priceContainer.querySelector('.price');
-          price.querySelector('[data-label="regular"]').textContent = this.dataset.labelRegular;
-          price.querySelector('[data-label="sale"]').textContent = this.dataset.labelSale;
-          price.querySelector('.price-item--regular').textContent = compareAtPrice;
-          price.querySelector('.price-item--sale').textContent = formattedPrice;
-        }
-
-        // FORMATO DE MONEDA BASE
-        formatMoney(cents) {
-          return (cents / 100).toLocaleString('en-US', {
-            style: 'currency',
-            currency: window.Shopify && Shopify.currency ? Shopify.currency.active : 'USD'
-          });
-        }
-
-        update() {
-          const variant = this.getVariant();
-          if (!variant) return;
-
-          const planAllocation = this.getSelectedAllocation();
-          const isSubscription = this.subRadio.checked && !this.subRadio.disabled && !!planAllocation;
-
-          this.oneTimeOption.classList.toggle('is-active', !isSubscription);
-          this.subOption.classList.toggle('is-active', isSubscription);
-
-          this.setScheme(this.oneTimeOption, !isSubscription);
-          this.setScheme(this.subOption, isSubscription);
-
-          // 1. OBTENER EL PRECIO ONE-TIME BASE DE LA OPCIÓN SELECCIONADA
-          const baseOneTimeCents = this.overrideOneTimeCents !== null 
-            ? this.overrideOneTimeCents 
-            : (variant.price * this.currentQty);
-
-          const formattedOneTime = this.formatMoney(baseOneTimeCents);
-          this.oneTimePrice.textContent = formattedOneTime;
-
-          // 2. CALCULAR Y MOSTRAR EL PRECIO DE SUSCRIPCIÓN CON DESCUENTO
-          if (planAllocation) {
-            const discountPercent = planAllocation.discount_percent || 0;
-            const subFactor = (100 - discountPercent) / 100;
-            const calculatedSubCents = Math.round(baseOneTimeCents * subFactor);
-            
-            const formattedSubPrice = this.formatMoney(calculatedSubCents);
-            this.subPrice.textContent = formattedSubPrice;
-            
-            this.updateBadge(planAllocation);
-            if (isSubscription) {
-              this.applyPrice(formattedSubPrice, formattedOneTime);
+            /**
+             * Dawn keeps the `#price-{{ section }}` container and only swaps its innerHTML,
+             * but the block is looked up on every use so the reference never goes stale.
+             */
+            getPriceContainer() {
+              return document.getElementById(this.dataset.priceTarget);
             }
-          } else {
-            this.subPrice.textContent = formattedOneTime;
-            this.badge.hidden = true;
+
+            getVariant() {
+              const formVariantId = document
+                .getElementById(this.dataset.formId)
+                ?.querySelector('input[name="id"]')?.value;
+
+              return this.json.variants[this.variantId] || this.json.variants[formVariantId];
+            }
+
+            getSelectedAllocation() {
+              const allocation = this.getVariant()?.allocations?.[this.planSelect.value];
+              return allocation?.available === false ? null : allocation;
+            }
+
+            /** Disables the plans the current variant is not subscribed to */
+            updatePlanAvailability() {
+              const allocations = this.getVariant()?.allocations || {};
+              const options = [...this.planSelect.querySelectorAll('option')];
+
+              options.forEach((option) => {
+                const allocation = allocations[option.value];
+                option.disabled = !allocation || allocation.available === false;
+              });
+
+              const hasPlans = options.some((option) => !option.disabled);
+
+              this.subOption.classList.toggle('is-disabled', !hasPlans);
+              this.subRadio.disabled = !hasPlans;
+
+              // The chosen frequency is gone on this variant, fall back to an available one
+              if (!this.getSelectedAllocation()) {
+                const availableOption = options.find((option) => !option.disabled);
+                if (availableOption) this.planSelect.value = availableOption.value;
+              }
+
+              if (!this.getSelectedAllocation()) {
+                this.oneTimeOption.querySelector('[data-subscription-radio]').checked = true;
+              }
+            }
+
+            /**
+             * Dawn replaces the content of the price block on every variant change, so the
+             * server markup is stored before the selling plan price is applied on top of it.
+             */
+            rememberPrice() {
+              const priceContainer = this.getPriceContainer();
+              if (!priceContainer) return;
+
+              this.priceContainer = priceContainer;
+              this.pristinePriceHtml = priceContainer.innerHTML;
+              this.pristineClassName = priceContainer.querySelector('.price')?.className || 'price';
+            }
+
+            restorePrice() {
+              const priceContainer = this.getPriceContainer();
+              if (!priceContainer || this.pristinePriceHtml == null) return;
+
+              priceContainer.innerHTML = this.pristinePriceHtml;
+            }
+
+            /**
+             * Rebuilds the price block as "was one time / now the selling plan price",
+             * the same markup and classes Dawn uses for a sale price. The size classes
+             * come from the server markup so the block keeps its original typography.
+             */
+            applyPrice(formattedPrice, compareAtPrice) {
+              const priceContainer = this.getPriceContainer();
+              if (!priceContainer || this.pristinePriceHtml == null) return;
+
+              const className = (this.pristineClassName || 'price')
+                .split(/\s+/)
+                .filter(
+                  (name) =>
+                    name && name !== 'price--on-sale' && name !== 'price--subscription'
+                )
+                .concat(['price--on-sale', 'price--subscription'])
+                .join(' ');
+
+              priceContainer.innerHTML = `
+                <div class="${className}">
+                  <div class="price__container">
+                    <div class="price__sale">
+                      <span class="visually-hidden visually-hidden--inline" data-label="regular"></span>
+                      <span><s class="price-item price-item--regular"></s></span>
+                      <span class="visually-hidden visually-hidden--inline" data-label="sale"></span>
+                      <span class="price-item price-item--sale price-item--last"></span>
+                    </div>
+                  </div>
+                </div>`;
+
+              const price = priceContainer.querySelector('.price');
+              price.querySelector('[data-label="regular"]').textContent = this.dataset.labelRegular;
+              price.querySelector('[data-label="sale"]').textContent = this.dataset.labelSale;
+              price.querySelector('.price-item--regular').textContent = compareAtPrice;
+              price.querySelector('.price-item--sale').textContent = formattedPrice;
+            }
+
+            update() {
+              const variant = this.getVariant();
+              if (!variant) return;
+
+              /**
+               * The plan price and the discount badge describe the selling plan itself, not
+               * the selected card, so they are read from the selected plan whether or not the
+               * subscription is the active option. Reading them only when the subscription is
+               * active is what used to leave the subscription price equal to the one-time
+               * price until the shopper touched the block for the first time.
+               */
+              const planAllocation = this.getSelectedAllocation();
+              const isSubscription = this.subRadio.checked && !this.subRadio.disabled && !!planAllocation;
+
+              this.oneTimeOption.classList.toggle('is-active', !isSubscription);
+              this.subOption.classList.toggle('is-active', isSubscription);
+
+              this.setScheme(this.oneTimeOption, !isSubscription);
+              this.setScheme(this.subOption, isSubscription);
+
+              this.oneTimePrice.textContent = variant.formatted_price;
+
+              if (planAllocation) {
+                this.subPrice.textContent = planAllocation.formatted_price;
+                this.updateBadge(planAllocation);
+              } else {
+                this.subPrice.textContent = variant.formatted_price;
+                this.badge.hidden = true;
+              }
+
+              if (isSubscription) {
+                this.hiddenInput.value = this.planSelect.value;
+                this.applyPrice(planAllocation.formatted_price, variant.formatted_price);
+              } else {
+                this.hiddenInput.value = '';
+                this.restorePrice();
+              }
+            }
+
+            setScheme(option, isSelected) {
+              const { schemeActive, schemeInactive } = option.dataset;
+
+              option.classList.toggle(schemeActive, isSelected);
+              option.classList.toggle(schemeInactive, !isSelected);
+            }
+
+            updateBadge(allocation) {
+              if (!this.badge) return;
+
+              if (allocation.discount_percent > 0) {
+                this.badge.textContent = this.badge.dataset.template.replace(
+                  '[percent]',
+                  allocation.discount_percent
+                );
+                this.badge.hidden = false;
+              } else {
+                this.badge.hidden = true;
+              }
+            }
+
+            updatePerDeliveryPrice(allocation) {
+              if (!this.perDeliveryPrice) return;
+
+              if (!allocation.formatted_per_delivery_price) {
+                this.perDeliveryPrice.hidden = true;
+                return;
+              }
+
+              this.perDeliveryPrice.textContent = this.perDeliveryPrice.dataset.template.replace(
+                '[price]',
+                allocation.formatted_per_delivery_price
+              );
+              this.perDeliveryPrice.hidden = false;
+            }
           }
-
-          if (isSubscription) {
-            this.hiddenInput.value = this.planSelect.value;
-          } else {
-            this.hiddenInput.value = '';
-            this.restorePrice();
-          }
-        }
-
-        setScheme(option, isSelected) {
-          const { schemeActive, schemeInactive } = option.dataset;
-
-          option.classList.toggle(schemeActive, isSelected);
-          option.classList.toggle(schemeInactive, !isSelected);
-        }
-
-        updateBadge(allocation) {
-          if (!this.badge) return;
-
-          if (allocation.discount_percent > 0) {
-            this.badge.textContent = this.badge.dataset.template.replace(
-              '[percent]',
-              allocation.discount_percent
-            );
-            this.badge.hidden = false;
-          } else {
-            this.badge.hidden = true;
-          }
-        }
-
-        updatePerDeliveryPrice(allocation) {
-          if (!this.perDeliveryPrice) return;
-
-          if (!allocation.formatted_per_delivery_price) {
-            this.perDeliveryPrice.hidden = true;
-            return;
-          }
-
-          this.perDeliveryPrice.textContent = this.perDeliveryPrice.dataset.template.replace(
-            '[price]',
-            allocation.formatted_per_delivery_price
-          );
-          this.perDeliveryPrice.hidden = false;
-        }
+        );
       }
-    );
-  }
-</script>
+    </script>
   </product-subscription>
 {%- endif -%}
