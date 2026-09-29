@@ -181,11 +181,13 @@
           assign qty_key = 'tier_' | append: i | append: '_qty'
           assign discount_key = 'tier_' | append: i | append: '_discount'
           assign badge_key = 'tier_' | append: i | append: '_badge'
+          assign image_key = 'tier_' | append: i | append: '_image'
 
           assign tier_title = block.settings[title_key]
           assign tier_qty = block.settings[qty_key]
           assign tier_discount = block.settings[discount_key]
           assign tier_badge = block.settings[badge_key]
+          assign tier_image = block.settings[image_key]
         -%}
 
         {%- if tier_title != blank and tier_qty > 0 -%}
@@ -209,31 +211,36 @@
             data-discount="{{ tier_discount }}"
           >
             <div class="tier_badge badge_{{ i }}">{{ tier_badge }}</div>
-            <span class="quantity-break-left">
-              <input
-                type="radio"
-                name="quantity_break_option_{{ block.id }}"
-                class="quantity-break-radio"
-                data-qb-radio
-                value="{{ tier_qty }}"
-                {% if forloop.first %}checked{% endif %}
-              >
-              <span class="quantity-break-info">
-                <span class="quantity-break-label">
-                  {{ tier_title }}
-                  {%- if tier_discount > 0 -%}
-                    <span class="quantity-break-badge">SAVE {{ tier_discount }}%</span>
-                  {%- endif -%}
+            <div>
+              <span class="quantity-break-left">
+                <input
+                  type="radio"
+                  name="quantity_break_option_{{ block.id }}"
+                  class="quantity-break-radio"
+                  data-qb-radio
+                  value="{{ tier_qty }}"
+                  {% if forloop.first %}checked{% endif %}
+                >
+                <span class="quantity-break-info">
+                  <span class="quantity-break-label">
+                    {{ tier_title }}
+                    {%- if tier_discount > 0 -%}
+                      <span class="quantity-break-badge">SAVE {{ tier_discount }}%</span>
+                    {%- endif -%}
+                  </span>
                 </span>
               </span>
-            </span>
 
-            <span class="quantity-break-prices">
-              <span class="quantity-break-final-price" data-qb-total>{{ total_cents | money }}</span>
-              {%- if tier_discount > 0 -%}
-                <span class="quantity-break-compare-price" data-qb-compare>{{ compare_cents | money }}</span>
-              {%- endif -%}
-            </span>
+              <span class="quantity-break-prices">
+                <span class="quantity-break-final-price" data-qb-total>{{ total_cents | money }}</span>
+                {%- if tier_discount > 0 -%}
+                  <span class="quantity-break-compare-price" data-qb-compare>{{ compare_cents | money }}</span>
+                {%- endif -%}
+              </span>
+            </div>
+            <div>
+              <img src="{{ tier_image | image_url: height:80  }}"/>
+            </div>
           </label>
         {%- endif -%}
       {%- endfor -%}
