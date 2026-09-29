@@ -59,6 +59,9 @@
     data-current-variant="{{ current_variant.id }}"
     data-label-regular="{{ 'products.product.price.regular_price' | t | escape }}"
     data-label-sale="{{ 'products.product.price.sale_price' | t | escape }}"
+    data-use-currency="{{ use_currency }}"
+    data-money-format="{{ shop.money_format | escape }}"
+    data-money-with-currency-format="{{ shop.money_with_currency_format | escape }}"
   >
     {%- comment -%} Prices and selling plan allocations of every variant {%- endcomment -%}
     <script type="application/json" data-subscription-json>
@@ -81,6 +84,7 @@
                     "price": {{ allocation.price }},
                     "available": {% if allocation.available == false %}false{% else %}true{% endif %},
                     "discount_percent": {{ allocation_discount }},
+                    "per_delivery_price_cents": {{ allocation.per_delivery_price }},
                     "formatted_price": {% if use_currency %}{{ allocation.price | money_with_currency | json }}{% else %}{{ allocation.price | money | json }}{% endif %},
                     "formatted_per_delivery_price": {% if use_currency %}{{ allocation.per_delivery_price | money_with_currency | json }}{% else %}{{ allocation.per_delivery_price | money | json }}{% endif %}
                   }{%- unless forloop.last -%},{%- endunless -%}
@@ -174,9 +178,18 @@
           {% unless first_allocation.per_delivery_price %}hidden{% endunless %}
         >
           {%- if first_allocation.per_delivery_price -%}
+            {%- comment -%}
+              `per_delivery_price` comes back in cents, so it has to be formatted before the
+              translation interpolates it: passed raw it read "18000 per delivery".
+            {%- endcomment -%}
+            {%- if use_currency -%}
+              {%- assign first_per_delivery = first_allocation.per_delivery_price | money_with_currency -%}
+            {%- else -%}
+              {%- assign first_per_delivery = first_allocation.per_delivery_price | money -%}
+            {%- endif -%}
             {{-
               'products.product.subscription.per_delivery'
-              | t: price: first_allocation.per_delivery_price
+              | t: price: first_per_delivery
             -}}
           {%- endif -%}
         </p>
@@ -363,6 +376,7 @@
           this.currentQty = 1;
           this.overridePriceCents = null;
           this.currentFormattedPrice = null;
+          this.currentFormattedCompare = null;
 
           this.addEventListener('change', (event) => {
             if (event.target.matches('[data-subscription-radio], [data-selling-plan-select]')) {
@@ -386,33 +400,18 @@
           this.variantId = this.dataset.currentVariant;
 
           // ESCUCHA EVENTOS DISPARADOS POR EL BLOQUE DE QUANTITY BREAKS
-          document.addEventListener('quantity-break:change', (event) => {
-            const { formattedPrice } = event.detail;
-            if (!formattedPrice) return;
+          // Nombrado para poder quitarlo en disconnectedCallback: el editor del tema vuelve a
+          // renderizar la sección y, sin esto, cada paso por el DOM dejaba un listener de más.
+          this.onQuantityBreakChange = (e) => {
+            if (!e.detail) return;
 
-            // 1. Extraer el valor numérico del precio (ej. de "$89.98" a 89.98)
-            const rawNumeric = parseFloat(formattedPrice.replace(/[^0-9.]/g, ''));
-            if (isNaN(rawNumeric)) return;
-
-            // 2. Obtener la moneda ($)
-            const currencySymbol = formattedPrice.replace(/[0-9.,]/g, '').trim() || '$';
-
-            // 3. Obtener el porcentaje de descuento de la suscripción (ej. 10% -> 0.10)
-            // Revisa si tienes data-subscription-discount="10" en tu HTML de suscripción
-            const discountPercent = 10; // Cambiar si tu porcentaje es dinámico
-            const subscriptionNumeric = rawNumeric * (1 - discountPercent / 100);
-
-            // 4. Formatear los precios a dos decimales
-            const formattedOneTime = `${currencySymbol}${rawNumeric.toFixed(2)}`;
-            const formattedSubscription = `${currencySymbol}${subscriptionNumeric.toFixed(2)}`;
-
-            // 5. Actualizar la interfaz (los spans/precios en las tarjetas de compra)
-            const oneTimePriceEl = document.querySelector('[data-one-time-price]');
-            const subscriptionPriceEl = document.querySelector('[data-subscription-price]');
-
-            if (oneTimePriceEl) oneTimePriceEl.textContent = formattedOneTime;
-            if (subscriptionPriceEl) subscriptionPriceEl.textContent = formattedSubscription;
-          });
+            this.currentQty = e.detail.quantity || 1;
+            this.overridePriceCents = e.detail.packPriceCents ?? null;
+            this.currentFormattedPrice = e.detail.formattedPrice || null;
+            this.currentFormattedCompare = e.detail.formattedCompare || null;
+            this.update();
+          };
+          document.addEventListener('quantity-break:change', this.onQuantityBreakChange);
 
           this.variantIdInputListener = (event) => {
             if (event.target?.name !== 'id') return;
@@ -421,6 +420,9 @@
             if (!this.json.variants[nextVariantId] || nextVariantId === this.variantId) return;
 
             this.variantId = nextVariantId;
+            this.overridePriceCents = null;
+            this.currentFormattedPrice = null;
+            this.currentFormattedCompare = null;
             setTimeout(() => this.refresh(), 0);
           };
           document.addEventListener('change', this.variantIdInputListener);
@@ -435,6 +437,7 @@
         disconnectedCallback() {
           this.variantChangeUnsubscriber?.();
           document.removeEventListener('change', this.variantIdInputListener);
+          document.removeEventListener('quantity-break:change', this.onQuantityBreakChange);
         }
 
         init() {
@@ -445,6 +448,11 @@
             if (!this.isConnected || !nextVariantId || !this.json.variants[nextVariantId]) return;
 
             this.variantId = String(nextVariantId);
+            // El total del pack pertenece a la variante anterior: se descarta y se vuelve a
+            // calcular desde el precio de la nueva, que es lo único válido en este punto.
+            this.overridePriceCents = null;
+            this.currentFormattedPrice = null;
+            this.currentFormattedCompare = null;
             this.refresh();
           });
 
@@ -517,21 +525,61 @@
           this.pristineClassName = priceContainer.querySelector('.price')?.className || 'price';
         }
 
-        // RESTAURAR O ACTUALIZAR EL PRECIO GENERAL EN MODO ONE-TIME
-        restorePrice(formattedPrice) {
+        // Pinta el precio del pack en el bloque de precio de DAWN CUANDO ESTÁ EN MODO ONE-TIME
+        paintOneTime(formattedPrice) {
           const priceContainer = this.getPriceContainer();
           if (!priceContainer || this.pristinePriceHtml == null) return;
 
+          // applyPrice() reescribió el marcado por completo, así que siempre se parte de la
+          // instantánea de Dawn antes de volver a escribir encima.
           priceContainer.innerHTML = this.pristinePriceHtml;
 
-          // Si hay un precio formateado derivado de los packs o multiplicador de cantidad, actualiza el nodo visible
-          if (formattedPrice) {
-            const regularItem = priceContainer.querySelector('.price-item--regular');
-            const lastItem = priceContainer.querySelector('.price-item--last');
+          const priceEl = priceContainer.querySelector('.price');
+          if (!priceEl) return;
 
-            if (regularItem) regularItem.textContent = formattedPrice;
-            if (lastItem) lastItem.textContent = formattedPrice;
+          // price.liquid usa volume-pricing--sale-badge o price--sold-out en lugar de
+          // price--on-sale, y en esos casos ese marcado es el dueño del precio.
+          const ownsPrice =
+            !priceEl.classList.contains('volume-pricing--sale-badge') &&
+            !priceEl.classList.contains('price--sold-out');
+
+          // price.liquid dibuja la misma clase en .price__regular y en .price__sale, así que cada
+          // nodo se busca dentro de su contenedor: con price--on-sale visible es .price__sale el
+          // que se muestra, y sin él lo es .price__regular.
+          const saleRegular = priceEl.querySelector('.price__sale s.price-item--regular');
+          const saleItem = priceEl.querySelector('.price__sale .price-item--sale');
+          const plainItem = priceEl.querySelector('.price__regular .price-item--regular');
+
+          if (plainItem) plainItem.textContent = formattedPrice;
+          if (saleItem) saleItem.textContent = formattedPrice;
+
+          // El total del pack sólo se muestra como oferta cuando hay un precio sin descontar que
+          // tachar. Con una cantidad escrita que no casa con ningún pack, o con un pack sin
+          // descuento, el marcado se deja tal como Dawn lo renderizó.
+          if (!ownsPrice || !this.currentFormattedCompare) {
+            priceEl.className = this.pristineClassName || 'price';
+            return;
           }
+
+          priceEl.className = this.withPriceClasses(['price--on-sale']);
+
+          if (saleRegular) saleRegular.textContent = this.currentFormattedCompare;
+        }
+
+        /**
+         * Reinicia las clases de precio a las que Dawn renderizó y añade las de este bloque, para
+         * que cambiar entre pack y suscripción no deje `price--on-sale` o `price--subscription`
+         * pegadas de un estado al otro.
+         */
+        withPriceClasses(classes) {
+          return (this.pristineClassName || 'price')
+            .split(/\s+/)
+            .filter(
+              (name) =>
+                name && name !== 'price--on-sale' && name !== 'price--subscription'
+            )
+            .concat(classes)
+            .join(' ');
         }
 
         // MONTA LA ESTRUCTURA DE OFERTA/SUSCRIPCIÓN EN EL PRECIO GENERAL DE DAWN
@@ -539,14 +587,7 @@
           const priceContainer = this.getPriceContainer();
           if (!priceContainer || this.pristinePriceHtml == null) return;
 
-          const className = (this.pristineClassName || 'price')
-            .split(/\s+/)
-            .filter(
-              (name) =>
-                name && name !== 'price--on-sale' && name !== 'price--subscription'
-            )
-            .concat(['price--on-sale', 'price--subscription'])
-            .join(' ');
+          const className = this.withPriceClasses(['price--on-sale', 'price--subscription']);
 
           priceContainer.innerHTML = `
             <div class="${className}">
@@ -567,11 +608,50 @@
           price.querySelector('.price-item--sale').textContent = formattedPrice;
         }
 
+        /**
+         * Formatea siguiendo el formato de moneda de la tienda en lugar de asumir dólares con
+         * separador de millar: los importes que salen de aquí se comparan con los que escribe
+         * Liquid en el mismo producto y tienen que verse igual.
+         *
+         * Cada clave del formato lleva sus propios separadores porque así es como Liquid las
+         * resuelve; `amount` usa los delimitadores por defecto de la tienda, coma y punto.
+         */
         formatMoney(cents) {
-          return (cents / 100).toLocaleString('en-US', {
-            style: 'currency',
-            currency: window.Shopify && Shopify.currency ? Shopify.currency.active : 'USD'
-          });
+          const rate = Number(window.Shopify?.currency?.rate) || 1;
+          const value = Math.round(cents * rate);
+          const template =
+            (this.dataset.useCurrency === 'true'
+              ? this.dataset.moneyWithCurrencyFormat
+              : this.dataset.moneyFormat) || '{{amount}}';
+
+          const negative = value < 0;
+          const [whole, decimals] = (Math.abs(value) / 100).toFixed(2).split('.');
+
+          const withSeparator = (separator) => (digits, fraction) =>
+            digits.replace(/\B(?=(\d{3})+(?!\d))/g, separator) +
+            (fraction ? `.${fraction}` : '');
+          const comma = withSeparator(',');
+          const apostrophe = withSeparator("'");
+          const space = withSeparator(' ');
+
+          const parts = {
+            amount: comma(whole, decimals),
+            amount_no_decimals: comma(whole),
+            amount_with_comma_separator: comma(whole, decimals),
+            amount_no_decimals_with_comma_separator: comma(whole),
+            amount_with_apostrophe_separator: apostrophe(whole, decimals),
+            amount_no_decimals_with_apostrophe_separator: apostrophe(whole),
+            amount_with_space_separator: space(whole, decimals),
+            amount_no_decimals_with_space_separator: space(whole),
+            currency_code: window.Shopify?.currency?.active || ''
+          };
+
+          const formatted = template.replace(
+            /\{\{\s*(\w+)\s*\}\}/g,
+            (match, key) => (key in parts ? parts[key] : '')
+          );
+
+          return `${negative ? '-' : ''}${formatted.trim()}`;
         }
 
         update() {
@@ -587,28 +667,33 @@
           this.setScheme(this.oneTimeOption, !isSubscription);
           this.setScheme(this.subOption, isSubscription);
 
-          // CALCULAR PRECIO BASE DE ONE-TIME CON RESPECTO AL PACK O CANTIDAD
-          let baseOneTimeCents = this.overridePriceCents !== null 
-            ? this.overridePriceCents 
-            : (variant.price * this.currentQty);
+          const quantity = Math.max(1, parseInt(this.currentQty, 10) || 1);
 
-          let formattedOneTime = this.currentFormattedPrice 
-            ? this.currentFormattedPrice 
-            : this.formatMoney(baseOneTimeCents);
+          // CALCULAR PRECIO BASE DE ONE-TIME CON RESPECTO AL PACK O CANTIDAD
+          // El total del pack sólo existe en el bloque de packs: un descuento fijo sobre el pack
+          // no se puede volver a deducir desde un porcentaje, así que sin él el precio mostrado
+          // se iba al precio de variante por la cantidad, sin descuento.
+          const oneTimeTotalCents =
+            this.overridePriceCents != null ? this.overridePriceCents : variant.price * quantity;
+
+          const formattedOneTime =
+            this.currentFormattedPrice || this.formatMoney(oneTimeTotalCents);
 
           this.oneTimePrice.textContent = formattedOneTime;
 
           // CALCULAR PRECIO DE SUSCRIPCIÓN CON EL DESCUENTO CORRESPONDIENTE
           if (planAllocation) {
-            const discountPercent = planAllocation.discount_percent || 0;
-            const subFactor = (100 - discountPercent) / 100;
-            const calculatedSubCents = Math.round(baseOneTimeCents * subFactor);
-            
-            const formattedSubPrice = this.formatMoney(calculatedSubCents);
+            // El precio de la asignación del plan es el precio de UNA unidad ya descontada, así
+            // que el total del pack es ese precio por la cantidad: exactamente lo que se cobra
+            // por entrega. Aplicar el porcentaje del plan sobre el total del pack lo descontaría
+            // dos veces y además lo haría mal en los packs de descuento fijo.
+            const subTotalCents = Math.round((planAllocation.price ?? variant.price) * quantity);
+
+            const formattedSubPrice = this.formatMoney(subTotalCents);
             this.subPrice.textContent = formattedSubPrice;
-            
+
             this.updateBadge(planAllocation);
-            this.updatePerDeliveryPrice(planAllocation);
+            this.updatePerDeliveryPrice(planAllocation, quantity);
 
             if (isSubscription) {
               this.applyPrice(formattedSubPrice, formattedOneTime);
@@ -623,7 +708,7 @@
           } else {
             this.hiddenInput.value = '';
             // RESTAURA EL PRECIO GENERAL CON EL PRECIO DEL PACK EN MODO ONE-TIME
-            this.restorePrice(formattedOneTime);
+            this.paintOneTime(formattedOneTime);
           }
         }
 
@@ -648,17 +733,22 @@
           }
         }
 
-        updatePerDeliveryPrice(allocation) {
+        updatePerDeliveryPrice(allocation, quantity = 1) {
           if (!this.perDeliveryPrice) return;
 
-          if (!allocation.formatted_per_delivery_price) {
+          if (!allocation.per_delivery_price_cents && !allocation.formatted_per_delivery_price) {
             this.perDeliveryPrice.hidden = true;
             return;
           }
 
+          // Igual que el total: la entrega lleva el pack entero, no una unidad suelta.
+          const price = allocation.per_delivery_price_cents
+            ? this.formatMoney(Math.round(allocation.per_delivery_price_cents * quantity))
+            : allocation.formatted_per_delivery_price;
+
           this.perDeliveryPrice.textContent = this.perDeliveryPrice.dataset.template.replace(
             '[price]',
-            allocation.formatted_per_delivery_price
+            price
           );
           this.perDeliveryPrice.hidden = false;
         }
