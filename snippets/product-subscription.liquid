@@ -386,13 +386,32 @@
           this.variantId = this.dataset.currentVariant;
 
           // ESCUCHA EVENTOS DISPARADOS POR EL BLOQUE DE QUANTITY BREAKS
-          document.addEventListener('quantity-break:change', (e) => {
-            if (e.detail) {
-              this.currentQty = e.detail.quantity || 1;
-              this.overridePriceCents = e.detail.packPriceCents || null;
-              this.currentFormattedPrice = e.detail.formattedPrice || null;
-              this.update();
-            }
+          document.addEventListener('quantity-break:change', (event) => {
+            const { formattedPrice } = event.detail;
+            if (!formattedPrice) return;
+
+            // 1. Extraer el valor numérico del precio (ej. de "$89.98" a 89.98)
+            const rawNumeric = parseFloat(formattedPrice.replace(/[^0-9.]/g, ''));
+            if (isNaN(rawNumeric)) return;
+
+            // 2. Obtener la moneda ($)
+            const currencySymbol = formattedPrice.replace(/[0-9.,]/g, '').trim() || '$';
+
+            // 3. Obtener el porcentaje de descuento de la suscripción (ej. 10% -> 0.10)
+            // Revisa si tienes data-subscription-discount="10" en tu HTML de suscripción
+            const discountPercent = 10; // Cambiar si tu porcentaje es dinámico
+            const subscriptionNumeric = rawNumeric * (1 - discountPercent / 100);
+
+            // 4. Formatear los precios a dos decimales
+            const formattedOneTime = `${currencySymbol}${rawNumeric.toFixed(2)}`;
+            const formattedSubscription = `${currencySymbol}${subscriptionNumeric.toFixed(2)}`;
+
+            // 5. Actualizar la interfaz (los spans/precios en las tarjetas de compra)
+            const oneTimePriceEl = document.querySelector('[data-one-time-price]');
+            const subscriptionPriceEl = document.querySelector('[data-subscription-price]');
+
+            if (oneTimePriceEl) oneTimePriceEl.textContent = formattedOneTime;
+            if (subscriptionPriceEl) subscriptionPriceEl.textContent = formattedSubscription;
           });
 
           this.variantIdInputListener = (event) => {
