@@ -151,7 +151,7 @@
     }
 
     .quantity-break-final-price {
-      font-weight: 700;
+      font-weight: 500;
       font-size: 1.5rem;
     }
 
@@ -232,7 +232,7 @@
                   <span class="quantity-break-label">
                     {{ tier_title }}
                     {%- if tier_discount > 0 -%}
-                      <span class="quantity-break-badge">SAVE {{ tier_discount }}%</span>
+                      <span class="quantity-break-badge hidden">SAVE {{ tier_discount }}%</span>
                     {%- endif -%}
                   </span>
                 </span>
