@@ -147,6 +147,11 @@
         "type": "shopify://apps/forms/blocks/forms/8744a304-fcb1-4347-b211-bb6b4759a76a",
         "disabled": false,
         "settings": {}
+      },
+      "15054669563007723853": {
+        "type": "shopify://apps/rockit-discounts-sales/blocks/rockit-embed/f347a9bf-00bf-4eeb-9f4d-159bb9b1cead",
+        "disabled": false,
+        "settings": {}
       }
     },
     "color_schemes": {
