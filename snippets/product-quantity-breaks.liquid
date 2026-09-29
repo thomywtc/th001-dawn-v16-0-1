@@ -231,14 +231,16 @@
         activeDiscount = 0;
         pristineHtml = undefined;
         pristineIsOnSale = false;
+        boundQuantityInput = undefined;
+        onQuantityInput = () => {
+          clearTimeout(this.quantityInputTimer);
+          this.quantityInputTimer = setTimeout(() => this.selectByQuantity(), 250);
+        };
 
         connectedCallback() {
           // Re-binding a moved node would duplicate every listener.
           if (this.dataset.qbBound === 'true') return;
           this.dataset.qbBound = 'true';
-
-          this.resolveTargets();
-          this.rememberPristinePrice();
 
           this.onCardChange = (event) => {
             if (!event.target.matches('[data-qb-radio]')) return;
@@ -246,11 +248,10 @@
           };
           this.addEventListener('change', this.onCardChange);
 
-          this.onQuantityInput = () => {
-            clearTimeout(this.quantityInputTimer);
-            this.quantityInputTimer = setTimeout(() => this.selectByQuantity(), 250);
-          };
-          this.quantityInput?.addEventListener('input', this.onQuantityInput);
+          // `onQuantityInput` is a class field so it already exists here: `resolveTargets` binds
+          // it, and binding before the handler exists would leave the input permanently deaf.
+          this.resolveTargets();
+          this.rememberPristinePrice();
 
           this.applyActive();
 
@@ -265,6 +266,7 @@
         disconnectedCallback() {
           this.variantChangeUnsubscriber?.();
           clearTimeout(this.quantityInputTimer);
+          this.boundQuantityInput?.removeEventListener('input', this.onQuantityInput);
         }
 
         get cards() {
@@ -291,7 +293,44 @@
 
         resolveTargets() {
           this.priceContainer = document.getElementById(`price-${this.dataset.sectionId}`);
-          this.quantityInput = document.getElementById(`Quantity-${this.dataset.sectionId}`);
+          this.quantityInput = this.findQuantityInput();
+          this.bindQuantityInput();
+        }
+
+        /**
+         * Dawn swaps the quantity input when it re-renders the quantity rules, and the input may
+         * also appear after this block if the merchant dragged quantity-breaks above
+         * quantity_selector. Re-binding on every resolve covers both, and the identity check keeps
+         * a single listener when the node is unchanged.
+         */
+        bindQuantityInput() {
+          if (this.quantityInput === this.boundQuantityInput) return;
+          this.boundQuantityInput?.removeEventListener('input', this.onQuantityInput);
+          this.boundQuantityInput = this.quantityInput ?? undefined;
+          this.boundQuantityInput?.addEventListener('input', this.onQuantityInput);
+        }
+
+        /**
+         * The product quantity input is emitted by the quantity_selector block and is attached to
+         * the form with a `form` attribute, so it does not have to sit inside the form element.
+         * The id lookup is the fast path; the fallbacks cover the input being rendered after this
+         * block (the merchant can drag quantity-breaks above quantity_selector in the editor) and
+         * Dawn replacing the node when it re-renders the quantity rules.
+         */
+        findQuantityInput() {
+          const byId = document.getElementById(`Quantity-${this.dataset.sectionId}`);
+          if (byId) return byId;
+
+          const formId = this.dataset.productFormId;
+          if (formId) {
+            const byForm = document.querySelector(`input[name="quantity"][form="${formId}"]`);
+            if (byForm) return byForm;
+          }
+
+          return (
+            this.closest('product-info')?.querySelector('.quantity__input') ??
+            document.querySelector('.product-form__quantity .quantity__input')
+          );
         }
 
         rememberPristinePrice() {
@@ -387,25 +426,48 @@
         }
 
         writeQuantity() {
+          // Dawn replaces the input when it re-renders the quantity rules, so a node that has
+          // been detached is resolved again rather than written to.
+          if (!this.quantityInput?.isConnected) this.resolveTargets();
+
           const input = this.quantityInput;
-          if (!input) return;
+          if (!input) {
+            // Previously this failed silently, which made the block look broken for no visible
+            // reason. The id the block looked for is part of the message so it can be matched up
+            // against the rendered markup.
+            console.warn(
+              'quantity-breaks: no se encontro el input de cantidad. Se busco el id "Quantity-' +
+                this.dataset.sectionId +
+                '" y el form "' +
+                this.dataset.productFormId +
+                '".',
+            );
+            return;
+          }
 
           const min = parseInt(input.dataset.min || input.min, 10);
           const max = parseInt(input.dataset.max || input.max, 10);
-          const step = parseInt(input.step, 10) || 1;
 
+          // Only clamped to the variant's own rules. The tier quantity is not snapped to the
+          // increment: a pack of 2 is still 2 units even if the variant sells in steps of 3, and
+          // number inputs submit their value regardless of step.
           let next = this.activeQty;
           if (Number.isFinite(min)) next = Math.max(next, min);
           if (Number.isFinite(max)) next = Math.min(next, max);
-          if (step > 1 && Number.isFinite(min)) {
-            next = min + Math.round((next - min) / step) * step;
-          }
-          if (next === input.value) return;
+          if (Number.isFinite(min) && Number.isFinite(max) && next < min) next = min;
+          if (String(next) === input.value) return;
 
           input.value = next;
           // Dawn listens for both; `QuantityInput` and `validateQtyRules` need the change event.
           input.dispatchEvent(new Event('input', { bubbles: true }));
           input.dispatchEvent(new Event('change', { bubbles: true }));
+
+          if (String(next) !== input.value) {
+            console.warn(
+              `quantity-breaks: se intento escribir ${next} en el input de cantidad pero quedo ` +
+                `"${input.value}". Otro script esta sobreescribiendolo.`,
+            );
+          }
         }
 
         paintPrice() {
