@@ -16,10 +16,6 @@
           "type": "title",
           "settings": {}
         },
-        "price": {
-          "type": "price",
-          "settings": {}
-        },
         "variant_picker": {
           "type": "variant_picker",
           "settings": {
@@ -55,6 +51,10 @@
             "tier_4_discount": 0
           }
         },
+        "price": {
+          "type": "price",
+          "settings": {}
+        },
         "subscription_xCQRGG": {
           "type": "subscription",
           "settings": {
@@ -85,10 +85,10 @@
       },
       "block_order": [
         "title",
-        "price",
         "variant_picker",
         "quantity_selector",
         "quantity_breaks_w3k6LW",
+        "price",
         "subscription_xCQRGG",
         "buy_buttons",
         "description",
