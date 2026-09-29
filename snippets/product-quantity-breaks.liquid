@@ -168,6 +168,9 @@
       justify-content: flex-start;
       align-items: flex-start;
     }
+    .quantity-break-prices-withdisc{
+      
+    }
   </style>
 
   <quantity-breaks
@@ -245,6 +248,9 @@
                 {%- if tier_discount > 0 -%}
                   <span class="quantity-break-compare-price hidden" data-qb-compare>{{ compare_cents | money }}</span>
                 {%- endif -%}
+              </span>
+              <span class="quantity-break-prices-withdisc">
+                {{ total_cents | money }}
               </span>
             </div>
             <div class="qty-right-wrapper">
