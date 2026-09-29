@@ -48,14 +48,14 @@
             "tier_2_image": "shopify://shop_images/pack-2-3.avif",
             "tier_3_title": "4-Pack (15.14 L)",
             "tier_3_badge": "BEST VALUE",
-            "tier_3_qty": 4,
+            "tier_3_qty": 3,
             "tier_3_discount_type": "fixed",
             "tier_3_discount": 30,
             "tier_3_image": "shopify://shop_images/pack-4-3.avif",
             "tier_4_title": "",
             "tier_4_badge": "",
-            "tier_4_discount_type": "percent",
             "tier_4_qty": 0,
+            "tier_4_discount_type": "percent",
             "tier_4_discount": 0
           }
         },
