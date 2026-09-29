@@ -375,6 +375,7 @@
           // ESTADO INTERNO PARA INTEGRACIÓN CON QUANTITY BREAKS / PACKS
           this.currentQty = 1;
           this.overridePriceCents = null;
+          this.packCompareCents = null;
           this.currentFormattedPrice = null;
           this.currentFormattedCompare = null;
 
@@ -407,6 +408,7 @@
 
             this.currentQty = e.detail.quantity || 1;
             this.overridePriceCents = e.detail.packPriceCents ?? null;
+            this.packCompareCents = e.detail.packCompareCents ?? null;
             this.currentFormattedPrice = e.detail.formattedPrice || null;
             this.currentFormattedCompare = e.detail.formattedCompare || null;
             this.update();
@@ -421,6 +423,7 @@
 
             this.variantId = nextVariantId;
             this.overridePriceCents = null;
+            this.packCompareCents = null;
             this.currentFormattedPrice = null;
             this.currentFormattedCompare = null;
             setTimeout(() => this.refresh(), 0);
@@ -451,6 +454,7 @@
             // El total del pack pertenece a la variante anterior: se descarta y se vuelve a
             // calcular desde el precio de la nueva, que es lo único válido en este punto.
             this.overridePriceCents = null;
+            this.packCompareCents = null;
             this.currentFormattedPrice = null;
             this.currentFormattedCompare = null;
             this.refresh();
@@ -676,6 +680,14 @@
           const oneTimeTotalCents =
             this.overridePriceCents != null ? this.overridePriceCents : variant.price * quantity;
 
+          // Lo que el pack descuenta sobre el total. Es la diferencia entre su precio tachado y
+          // su precio final, y se descuenta aparte del plan porque el precio de la asignación ya
+          // viene con su propio descuento dentro: los dos descuentos se suman.
+          const packDiscountCents =
+            this.overridePriceCents != null && this.packCompareCents != null
+              ? Math.max(0, this.packCompareCents - this.overridePriceCents)
+              : 0;
+
           const formattedOneTime =
             this.currentFormattedPrice || this.formatMoney(oneTimeTotalCents);
 
@@ -684,16 +696,19 @@
           // CALCULAR PRECIO DE SUSCRIPCIÓN CON EL DESCUENTO CORRESPONDIENTE
           if (planAllocation) {
             // El precio de la asignación del plan es el precio de UNA unidad ya descontada, así
-            // que el total del pack es ese precio por la cantidad: exactamente lo que se cobra
-            // por entrega. Aplicar el porcentaje del plan sobre el total del pack lo descontaría
-            // dos veces y además lo haría mal en los packs de descuento fijo.
-            const subTotalCents = Math.round((planAllocation.price ?? variant.price) * quantity);
+            // que el total del pack es ese precio por la cantidad, menos el descuento del pack.
+            // Sin esa resta un pack de descuento fijo se come justo el descuento del plan: con
+            // $49.99, un -$10 en el pack de 2 y un plan del 10% las dos cajas marcaban $89.98.
+            const subTotalCents = Math.max(
+              0,
+              (planAllocation.price ?? variant.price) * quantity - packDiscountCents
+            );
 
             const formattedSubPrice = this.formatMoney(subTotalCents);
             this.subPrice.textContent = formattedSubPrice;
 
             this.updateBadge(planAllocation);
-            this.updatePerDeliveryPrice(planAllocation, quantity);
+            this.updatePerDeliveryPrice(planAllocation, quantity, packDiscountCents);
 
             if (isSubscription) {
               this.applyPrice(formattedSubPrice, formattedOneTime);
@@ -733,7 +748,7 @@
           }
         }
 
-        updatePerDeliveryPrice(allocation, quantity = 1) {
+        updatePerDeliveryPrice(allocation, quantity = 1, packDiscountCents = 0) {
           if (!this.perDeliveryPrice) return;
 
           if (!allocation.per_delivery_price_cents && !allocation.formatted_per_delivery_price) {
@@ -741,9 +756,11 @@
             return;
           }
 
-          // Igual que el total: la entrega lleva el pack entero, no una unidad suelta.
+          // Igual que el total: la entrega lleva el pack entero y con el mismo descuento.
           const price = allocation.per_delivery_price_cents
-            ? this.formatMoney(Math.round(allocation.per_delivery_price_cents * quantity))
+            ? this.formatMoney(
+                Math.max(0, allocation.per_delivery_price_cents * quantity - packDiscountCents)
+              )
             : allocation.formatted_per_delivery_price;
 
           this.perDeliveryPrice.textContent = this.perDeliveryPrice.dataset.template.replace(
