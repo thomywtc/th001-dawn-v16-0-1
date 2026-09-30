@@ -152,6 +152,11 @@
         "type": "shopify://apps/rockit-discounts-sales/blocks/rockit-embed/f347a9bf-00bf-4eeb-9f4d-159bb9b1cead",
         "disabled": false,
         "settings": {}
+      },
+      "14826766009936288847": {
+        "type": "shopify://apps/discounty/blocks/sdk/d65eb522-0d94-499f-9831-d4b3301f5340",
+        "disabled": false,
+        "settings": {}
       }
     },
     "color_schemes": {
@@ -212,7 +217,7 @@
       },
       "scheme-6ecce205-47be-4eb1-af48-0f064f950a14": {
         "settings": {
-          "background": "#F8FFDC",
+          "background": "#f8ffdc",
           "background_gradient": "",
           "text": "#121212",
           "button": "#121212",
