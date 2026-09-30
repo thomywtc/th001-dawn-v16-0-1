@@ -12,12 +12,20 @@
     "main": {
       "type": "main-product",
       "blocks": {
+        "kite_discount_free_gift_app_block_vol_discount_efMLrN": {
+          "type": "shopify://apps/kite-discount-free-gift/blocks/app-block-volDiscount/2c7302c4-455d-4078-a829-48563ba26089",
+          "settings": {
+            "blockId": "block-id"
+          }
+        },
         "title": {
           "type": "title",
+          "disabled": true,
           "settings": {}
         },
         "variant_picker": {
           "type": "variant_picker",
+          "disabled": true,
           "settings": {
             "picker_type": "button",
             "swatch_shape": "circle"
@@ -83,18 +91,16 @@
             "show_gift_card_recipient": false
           }
         },
-        "description": {
-          "type": "description",
-          "settings": {}
-        },
         "custom_liquid_yAfA6A": {
           "type": "custom_liquid",
+          "disabled": true,
           "settings": {
             "custom_liquid": "{% render 'addtocartcustom' %}"
           }
         }
       },
       "block_order": [
+        "kite_discount_free_gift_app_block_vol_discount_efMLrN",
         "title",
         "variant_picker",
         "quantity_selector",
@@ -103,7 +109,6 @@
         "subscription_xCQRGG",
         "rockit_discounts_sales_discount_app_block_r6Jaky",
         "buy_buttons",
-        "description",
         "custom_liquid_yAfA6A"
       ],
       "settings": {
